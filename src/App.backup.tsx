@@ -537,7 +537,7 @@ export default function SaizeriyaSimulator() {
 
   const reset = () => setQty({});
 
-  // const totals = computeTotals(defaultItems, {}); // (not used; keep types happy if needed)
+// const totals = computeTotals(defaultItems, {}); // (not used; keep types happy if needed)
 
   const categories: Category[] = [
     "主食",
