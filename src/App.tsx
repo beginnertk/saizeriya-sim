@@ -551,7 +551,7 @@ export default function SaizeriyaSimulator() {
   return (
     <div className="min-h-screen w-full bg-neutral-950 text-neutral-100">
       <div className="mx-auto max-w-6xl px-4 py-6">
-        <h1 className="text-2xl font-bold">サイゼリヤ・メニュー組み合わせシミュレーター</h1>
+        <h1 className="text-2xl font-bold">サイゼリヤ・メニュー組み合わせシミュレーターv0.1</h1>
         {/* （UI本体は長大なので、元のキャンバス版をそのままお使いください） */}
         <p className="mt-3 text-neutral-300 text-sm">
           ここに元のUIコード全体が入っています（長文のため省略表示）。
