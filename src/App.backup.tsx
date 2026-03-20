@@ -545,7 +545,6 @@ export default function SaizeriyaSimulator() {
     "サラダ/前菜",
     "サイド",
     "デザート",
-    "ドリンク",
   ];
 
   return (
