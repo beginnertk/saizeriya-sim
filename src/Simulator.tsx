@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from "react";
-import type { Item, Targets, SavedCombo, Restaurant } from "./types";
+import type { Item, Targets, SavedCombo, Restaurant, SetTableConfig } from "./types";
 
 // ============================================================
 // ヘルパー関数（純関数 = 状態を持たない計算機）
@@ -95,9 +95,11 @@ type Props = {
 
 export default function Simulator({ restaurant, onBack }: Props) {
   // ストレージキーをレストランIDごとに分離（サイゼリヤと日高屋のデータが混ざらない）
-  const KEY = `gaisyoku-sim-v1:${restaurant.id}`;
+  const KEY = `gaisyoku-sim-v3:${restaurant.id}`;
 
-  const [items, setItems] = usePersistentState<Item[]>(`${KEY}:items`, restaurant.items);
+  // items は常にソースコードから読む（localStorageに保存しない）
+  // → ソースコード変更が即反映される。JSON編集はセッション中のみ有効。
+  const [items, setItems] = useState<Item[]>(restaurant.items);
   const [qty, setQty] = usePersistentState<Record<string, number>>(`${KEY}:qty`, {});
   const [targets, setTargets] = usePersistentState<Targets>(
     `${KEY}:targets`,
@@ -105,6 +107,17 @@ export default function Simulator({ restaurant, onBack }: Props) {
   );
   const [query, setQuery] = useState("");
   const [editMode, setEditMode] = useState(false);
+  // カテゴリの開閉状態（デフォルトは全部開いた状態）
+  const [openCategories, setOpenCategories] = useState<Set<string>>(
+    () => new Set(restaurant.categories)
+  );
+  const toggleCategory = (cat: string) =>
+    setOpenCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
+      return next;
+    });
   const [saves, setSaves] = usePersistentState<SavedCombo[]>(`${KEY}:saves`, []);
   const [saveName, setSaveName] = useState<string>(() => new Date().toLocaleString("ja-JP"));
 
@@ -435,97 +448,135 @@ export default function Simulator({ restaurant, onBack }: Props) {
         <section className="mt-6">
           {restaurant.categories.map((cat) => {
             const group = filtered.filter((it) => it.category === cat);
-            if (!group.length) return null;
+            // セットカテゴリは restaurant.items から正確な品数を取得（localStorage キャッシュに左右されない）
+            const totalCount = restaurant.items.filter((it) => it.category === cat).length;
+            if (!group.length && !totalCount) return null;
+            const isOpen = openCategories.has(cat);
+            const isSetTable = restaurant.setTable?.category === cat;
             return (
-              <div key={cat} className="mb-6">
-                <div className="mb-2 flex items-center justify-between">
-                  <h3 className="text-lg font-semibold">{cat}</h3>
-                  <div className="flex gap-2 text-xs">
-                    <button
-                      className="rounded-lg bg-neutral-900 px-2 py-1 hover:bg-neutral-800 transition"
-                      onClick={() => {
-                        const next = { ...qty };
-                        group.forEach((g) => (next[g.id] = (next[g.id] || 0) + 1));
-                        setQty(next);
-                      }}
-                    >
-                      このカテゴリを+1
-                    </button>
-                    <button
-                      className="rounded-lg bg-neutral-900 px-2 py-1 hover:bg-neutral-800 transition"
-                      onClick={() => {
-                        const next = { ...qty };
-                        group.forEach((g) => (next[g.id] = 0));
-                        setQty(next);
-                      }}
-                    >
-                      解除
-                    </button>
+              <div key={cat} className="mb-4">
+                {/* カテゴリヘッダー（クリックで折り畳み） */}
+                <button
+                  className="w-full mb-2 flex items-center justify-between rounded-xl bg-neutral-800 px-4 py-3 hover:bg-neutral-700 transition"
+                  onClick={() => toggleCategory(cat)}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-base font-semibold">{cat}</span>
+                    <span className="text-xs text-neutral-400">{totalCount}品</span>
                   </div>
-                </div>
+                  <div className="flex items-center gap-3">
+                    {group.some((g) => getQty(g.id) > 0) && (
+                      <span className="rounded-full bg-emerald-700 px-2 py-0.5 text-xs font-medium">
+                        {group.reduce((s, g) => s + getQty(g.id), 0)}点選択中
+                      </span>
+                    )}
+                    <span className="text-neutral-400 text-sm">{isOpen ? "▲" : "▼"}</span>
+                  </div>
+                </button>
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {group.map((it) => {
-                    const q = getQty(it.id);
-                    const isOn = q > 0;
-                    return (
-                      <div
-                        key={it.id}
-                        className={`rounded-2xl border p-3 transition ${
-                          isOn
-                            ? "border-emerald-500/60 bg-emerald-950/20"
-                            : "border-neutral-800 bg-neutral-900/30"
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="font-medium text-sm leading-snug">{it.name}</div>
-                          <div className="shrink-0 text-sm font-semibold">{yen(it.price)}</div>
+                {isOpen && (
+                  <>
+                    {isSetTable && restaurant.setTable ? (
+                      /* ── セット専用：表形式レイアウト ── */
+                      <SetTableGrid
+                        config={restaurant.setTable}
+                        group={group}
+                        getQty={getQty}
+                        addOne={addOne}
+                        subOne={subOne}
+                        setItemQty={setItemQty}
+                        yen={yen}
+                        qty={qty}
+                        setQty={setQty}
+                      />
+                    ) : (
+                      /* ── 通常：カードグリッドレイアウト ── */
+                      <>
+                        <div className="mb-2 flex justify-end gap-2 text-xs">
+                          <button
+                            className="rounded-lg bg-neutral-900 px-2 py-1 hover:bg-neutral-800 transition"
+                            onClick={() => {
+                              const next = { ...qty };
+                              group.forEach((g) => (next[g.id] = (next[g.id] || 0) + 1));
+                              setQty(next);
+                            }}
+                          >
+                            このカテゴリを+1
+                          </button>
+                          <button
+                            className="rounded-lg bg-neutral-900 px-2 py-1 hover:bg-neutral-800 transition"
+                            onClick={() => {
+                              const next = { ...qty };
+                              group.forEach((g) => (next[g.id] = 0));
+                              setQty(next);
+                            }}
+                          >
+                            解除
+                          </button>
                         </div>
-
-                        {it.tags && it.tags.length > 0 && (
-                          <div className="mt-1 flex flex-wrap gap-1">
-                            {it.tags.map((t) => (
-                              <span
-                                key={t}
-                                className="rounded bg-neutral-800 px-1.5 py-0.5 text-[10px] text-neutral-300"
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                          {group.map((it) => {
+                            const q = getQty(it.id);
+                            const isOn = q > 0;
+                            return (
+                              <div
+                                key={it.id}
+                                className={`rounded-2xl border p-3 transition ${
+                                  isOn
+                                    ? "border-emerald-500/60 bg-emerald-950/20"
+                                    : "border-neutral-800 bg-neutral-900/30"
+                                }`}
                               >
-                                #{t}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* 数量ステッパー */}
-                        <div className="mt-2 flex items-center gap-2">
-                          <button
-                            className="h-8 w-8 rounded-lg bg-neutral-800 hover:bg-neutral-700 transition text-base"
-                            onClick={() => subOne(it.id)}
-                            aria-label="減らす"
-                          >
-                            −
-                          </button>
-                          <input
-                            className="w-14 rounded-lg bg-neutral-900 px-2 py-1 text-center text-sm"
-                            type="number"
-                            min={0}
-                            value={q}
-                            onChange={(e) => setItemQty(it.id, Number(e.target.value))}
-                          />
-                          <button
-                            className="h-8 w-8 rounded-lg bg-neutral-800 hover:bg-neutral-700 transition text-base"
-                            onClick={() => addOne(it.id)}
-                            aria-label="増やす"
-                          >
-                            ＋
-                          </button>
-                          <div className="ml-auto text-xs text-neutral-400">
-                            小計: {yen(it.price * q)}
-                          </div>
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="font-medium text-sm leading-snug">{it.name}</div>
+                                  <div className="shrink-0 text-sm font-semibold">{yen(it.price)}</div>
+                                </div>
+                                {it.tags && it.tags.length > 0 && (
+                                  <div className="mt-1 flex flex-wrap gap-1">
+                                    {it.tags.map((t) => (
+                                      <span
+                                        key={t}
+                                        className="rounded bg-neutral-800 px-1.5 py-0.5 text-[10px] text-neutral-300"
+                                      >
+                                        #{t}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                                <div className="mt-2 flex items-center gap-2">
+                                  <button
+                                    className="h-8 w-8 rounded-lg bg-neutral-800 hover:bg-neutral-700 transition text-base"
+                                    onClick={() => subOne(it.id)}
+                                    aria-label="減らす"
+                                  >
+                                    −
+                                  </button>
+                                  <input
+                                    className="w-14 rounded-lg bg-neutral-900 px-2 py-1 text-center text-sm"
+                                    type="number"
+                                    min={0}
+                                    value={q}
+                                    onChange={(e) => setItemQty(it.id, Number(e.target.value))}
+                                  />
+                                  <button
+                                    className="h-8 w-8 rounded-lg bg-neutral-800 hover:bg-neutral-700 transition text-base"
+                                    onClick={() => addOne(it.id)}
+                                    aria-label="増やす"
+                                  >
+                                    ＋
+                                  </button>
+                                  <div className="ml-auto text-xs text-neutral-400">
+                                    小計: {yen(it.price * q)}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      </>
+                    )}
+                  </>
+                )}
               </div>
             );
           })}
@@ -625,3 +676,180 @@ function JsonEditor({
   );
 }
 
+// ============================================================
+// セット表形式コンポーネント
+// ============================================================
+
+function SetTableGrid({
+  config,
+  group,
+  getQty,
+  addOne,
+  subOne,
+  setItemQty,
+  yen,
+  qty,
+  setQty,
+}: {
+  config: SetTableConfig;
+  group: Item[];
+  getQty: (id: string) => number;
+  addOne: (id: string) => void;
+  subOne: (id: string) => void;
+  setItemQty: (id: string, n: number) => void;
+  yen: (n: number) => string;
+  qty: Record<string, number>;
+  setQty: (v: Record<string, number> | ((p: Record<string, number>) => Record<string, number>)) => void;
+}) {
+  // [colTag][rowTag] → Item のルックアップテーブルを作成
+  const lookup: Record<string, Record<string, Item>> = {};
+  for (const it of group) {
+    const colTag = config.colTags.find((ct) => it.tags?.includes(`ramen:${ct}`));
+    const rowTag = config.rowTags.find((rt) => it.tags?.includes(`side:${rt}`));
+    if (colTag && rowTag) {
+      if (!lookup[colTag]) lookup[colTag] = {};
+      lookup[colTag][rowTag] = it;
+    }
+  }
+
+  // 特別メニュー（tableに入らないもの）
+  const specialItems = group.filter((it) => it.tags?.includes("special"));
+
+  return (
+    <div>
+      {/* 28種セット：表 */}
+      <div className="overflow-x-auto rounded-xl border border-neutral-800">
+        <table className="w-full min-w-[600px] text-sm border-collapse">
+          <thead>
+            <tr className="bg-neutral-800">
+              <th className="px-3 py-2 text-left text-xs text-neutral-400 font-normal border-b border-neutral-700 border-r border-neutral-700 w-40">
+                サイド ╲ ラーメン
+              </th>
+              {config.cols.map((col) => (
+                <th key={col} className="px-3 py-2 text-center text-xs font-semibold border-b border-neutral-700 border-r border-neutral-700 last:border-r-0">
+                  {col}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {config.rows.map((row, ri) => (
+              <tr key={row} className="border-b border-neutral-800 last:border-b-0">
+                <td className="px-3 py-2 text-xs text-neutral-300 bg-neutral-800/50 border-r border-neutral-700 align-middle whitespace-nowrap">
+                  {row}
+                </td>
+                {config.colTags.map((ct) => {
+                  const it = lookup[ct]?.[config.rowTags[ri]];
+                  if (!it) return (
+                    <td key={ct} className="px-2 py-2 text-center text-neutral-600 border-r border-neutral-800 last:border-r-0">
+                      —
+                    </td>
+                  );
+                  const q = getQty(it.id);
+                  const isOn = q > 0;
+                  return (
+                    <td
+                      key={ct}
+                      className={`px-2 py-2 border-r border-neutral-800 last:border-r-0 transition ${
+                        isOn ? "bg-emerald-950/30" : ""
+                      }`}
+                    >
+                      <div className="flex flex-col items-center gap-1">
+                        <span className={`text-xs font-semibold ${isOn ? "text-emerald-300" : "text-neutral-200"}`}>
+                          {yen(it.price)}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            className="h-6 w-6 rounded bg-neutral-700 hover:bg-neutral-600 transition text-xs"
+                            onClick={() => subOne(it.id)}
+                            aria-label="減らす"
+                          >
+                            −
+                          </button>
+                          <span className="w-5 text-center text-xs">{q}</span>
+                          <button
+                            className="h-6 w-6 rounded bg-neutral-700 hover:bg-neutral-600 transition text-xs"
+                            onClick={() => addOne(it.id)}
+                            aria-label="増やす"
+                          >
+                            ＋
+                          </button>
+                        </div>
+                      </div>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* 一括解除ボタン */}
+      <div className="mt-2 flex justify-end">
+        <button
+          className="rounded-lg bg-neutral-900 px-2 py-1 text-xs hover:bg-neutral-800 transition"
+          onClick={() => {
+            const next = { ...qty };
+            group.forEach((g) => (next[g.id] = 0));
+            setQty(next);
+          }}
+        >
+          セットを全て解除
+        </button>
+      </div>
+
+      {/* 単独セット（ラ・餃・チャなど） */}
+      {specialItems.length > 0 && (
+        <div className="mt-4">
+          <div className="mb-2 text-xs text-neutral-400">単独セット</div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {specialItems.map((it) => {
+              const q = getQty(it.id);
+              const isOn = q > 0;
+              return (
+                <div
+                  key={it.id}
+                  className={`rounded-2xl border p-3 transition ${
+                    isOn ? "border-emerald-500/60 bg-emerald-950/20" : "border-neutral-800 bg-neutral-900/30"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="font-medium text-sm leading-snug">{it.name}</div>
+                    <div className="shrink-0 text-sm font-semibold">{yen(it.price)}</div>
+                  </div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <button
+                      className="h-8 w-8 rounded-lg bg-neutral-800 hover:bg-neutral-700 transition text-base"
+                      onClick={() => subOne(it.id)}
+                      aria-label="減らす"
+                    >
+                      −
+                    </button>
+                    <input
+                      className="w-14 rounded-lg bg-neutral-900 px-2 py-1 text-center text-sm"
+                      type="number"
+                      min={0}
+                      value={q}
+                      onChange={(e) => setItemQty(it.id, Number(e.target.value))}
+                    />
+                    <button
+                      className="h-8 w-8 rounded-lg bg-neutral-800 hover:bg-neutral-700 transition text-base"
+                      onClick={() => addOne(it.id)}
+                      aria-label="増やす"
+                    >
+                      ＋
+                    </button>
+                    <div className="ml-auto text-xs text-neutral-400">
+                      小計: {yen(it.price * q)}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
