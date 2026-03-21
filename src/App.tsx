@@ -1,17 +1,47 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { restaurants } from "./restaurants";
 import type { Restaurant } from "./types";
 import Simulator from "./Simulator";
 
+/** URLハッシュから共有パラメータを読み取る */
+function parseShareHash(): { restaurantId: string; qty: Record<string, number> } | null {
+  const hash = window.location.hash.slice(1);
+  if (!hash) return null;
+  const params = new URLSearchParams(hash);
+  const rId = params.get("r");
+  const qStr = params.get("q");
+  if (!rId || !qStr) return null;
+  const qty: Record<string, number> = {};
+  for (const pair of qStr.split(",")) {
+    const [id, count] = pair.split(":");
+    if (id && count) qty[id] = Math.max(0, parseInt(count, 10) || 0);
+  }
+  return { restaurantId: rId, qty };
+}
+
 export default function App() {
   const [selected, setSelected] = useState<Restaurant | null>(null);
+  const [sharedQty, setSharedQty] = useState<Record<string, number> | null>(null);
+
+  // 起動時にURLハッシュを読み取り、該当レストランを自動選択
+  useEffect(() => {
+    const shared = parseShareHash();
+    if (!shared) return;
+    const restaurant = restaurants.find((r) => r.id === shared.restaurantId);
+    if (restaurant) {
+      setSelected(restaurant);
+      setSharedQty(shared.qty);
+      history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+  }, []);
 
   // 店舗が選ばれたらシミュレーター画面へ
   if (selected) {
     return (
       <Simulator
         restaurant={selected}
-        onBack={() => setSelected(null)}
+        onBack={() => { setSelected(null); setSharedQty(null); }}
+        initialQty={sharedQty}
       />
     );
   }
