@@ -91,22 +91,22 @@ const MAX_SAVES = 50;
 type Props = {
   restaurant: Restaurant;
   onBack: () => void;
-  initialQty?: Record<string, number> | null;
 };
 
-export default function Simulator({ restaurant, onBack, initialQty }: Props) {
+export default function Simulator({ restaurant, onBack }: Props) {
   // ストレージキーをレストランIDごとに分離（サイゼリヤと日高屋のデータが混ざらない）
   const KEY = `gaisyoku-sim-v3:${restaurant.id}`;
 
   // items は常にソースコードから読む（localStorageに保存しない）
   // → ソースコード変更が即反映される。JSON編集はセッション中のみ有効。
-  const items = restaurant.items;
+  const [items, setItems] = useState<Item[]>(restaurant.items);
   const [qty, setQty] = usePersistentState<Record<string, number>>(`${KEY}:qty`, {});
   const [targets, setTargets] = usePersistentState<Targets>(
     `${KEY}:targets`,
     restaurant.defaultTargets
   );
   const [query, setQuery] = useState("");
+  const [editMode, setEditMode] = useState(false);
   // カテゴリの開閉状態（デフォルトは全部開いた状態）
   const [openCategories, setOpenCategories] = useState<Set<string>>(
     () => new Set(restaurant.categories)
@@ -120,18 +120,6 @@ export default function Simulator({ restaurant, onBack, initialQty }: Props) {
     });
   const [saves, setSaves] = usePersistentState<SavedCombo[]>(`${KEY}:saves`, []);
   const [saveName, setSaveName] = useState<string>(() => new Date().toLocaleString("ja-JP"));
-  const [showOrderList, setShowOrderList] = useState(false);
-  // 1品でも選んだら自動でドロワーを開く
-  useEffect(() => {
-    if (totals.count > 0) setShowOrderList(true);
-  }, [totals.count]);
-  // URLシェアから開いた場合、共有された数量を適用
-  useEffect(() => {
-    if (initialQty) setQty(initialQty);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  const [showSaveList, setShowSaveList] = useState(false);
-  const [saveSearch, setSaveSearch] = useState("");
-  const [saveSort, setSaveSort] = useState<"date" | "price-asc" | "price-desc">("date");
 
   // 数量操作
   const getQty = (id: string) => Math.max(0, qty[id] || 0);
@@ -145,12 +133,6 @@ export default function Simulator({ restaurant, onBack, initialQty }: Props) {
   // 集計
   const totals = useMemo(() => computeTotals(items, qty), [items, qty]);
 
-  // 選択中アイテム（qty > 0 のもの）
-  const selectedItems = useMemo(
-    () => items.filter((it) => (qty[it.id] || 0) > 0),
-    [items, qty]
-  );
-
   // 予算判定
   const budgetOk =
     targets.budget === undefined ? true : totals.price <= targets.budget;
@@ -158,6 +140,33 @@ export default function Simulator({ restaurant, onBack, initialQty }: Props) {
 
   // 検索フィルター
   const filtered = useMemo(() => simpleFilter(items, query), [items, query]);
+
+  // JSONエクスポート（メニュー定義）
+  const exportJson = () => {
+    const payload = { items, targets };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${restaurant.id}_data_${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // JSONインポート（メニュー定義）
+  const importJson = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result));
+        if (Array.isArray(parsed.items)) setItems(parsed.items);
+        if (parsed.targets) setTargets(parsed.targets);
+      } catch (e) {
+        alert("JSONの読み込みに失敗しました\n" + (e as Error).message);
+      }
+    };
+    reader.readAsText(file);
+  };
 
   // 保存
   const saveCurrent = () => {
@@ -217,28 +226,12 @@ export default function Simulator({ restaurant, onBack, initialQty }: Props) {
 
   const reset = () => setQty({});
 
-  // URLシェア：選択状態をURLハッシュに埋め込んでクリップボードにコピー
-  const [copied, setCopied] = useState(false);
-  const shareUrl = () => {
-    const compact = Object.entries(qty)
-      .filter(([, v]) => (v || 0) > 0)
-      .map(([id, v]) => `${id}:${v}`)
-      .join(",");
-    if (!compact) return;
-    const base = window.location.href.split("#")[0];
-    const url = `${base}#r=${restaurant.id}&q=${compact}`;
-    navigator.clipboard.writeText(url).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
-  };
-
   // ============================================================
   // UI
   // ============================================================
 
   return (
-    <div className="min-h-screen w-full bg-neutral-950 text-neutral-100 pb-24">
+    <div className="min-h-screen w-full bg-neutral-950 text-neutral-100">
       <div className="mx-auto max-w-6xl px-4 py-6">
 
         {/* ヘッダー */}
@@ -254,6 +247,29 @@ export default function Simulator({ restaurant, onBack, initialQty }: Props) {
               <h1 className="text-2xl font-bold">{restaurant.name}</h1>
               <p className="text-sm text-neutral-400">メニュー組み合わせシミュレーター</p>
             </div>
+          </div>
+          <div className="flex gap-2 text-sm">
+            <button
+              className="rounded-xl bg-neutral-800 px-3 py-1.5 hover:bg-neutral-700 transition"
+              onClick={() => setEditMode((v) => !v)}
+            >
+              {editMode ? "編集を閉じる" : "メニュー編集"}
+            </button>
+            <label className="rounded-xl bg-neutral-800 px-3 py-1.5 hover:bg-neutral-700 transition cursor-pointer">
+              JSON読込
+              <input
+                type="file"
+                accept="application/json"
+                className="hidden"
+                onChange={(e) => e.target.files && importJson(e.target.files[0])}
+              />
+            </label>
+            <button
+              className="rounded-xl bg-neutral-800 px-3 py-1.5 hover:bg-neutral-700 transition"
+              onClick={exportJson}
+            >
+              JSON書出
+            </button>
           </div>
         </header>
 
@@ -293,7 +309,7 @@ export default function Simulator({ restaurant, onBack, initialQty }: Props) {
                 : `✗ 予算オーバー（${yen(overAmount)} 超過）`}
             </div>
 
-            <div className="mt-3 flex flex-wrap gap-2 text-xs">
+            <div className="mt-3 flex gap-2 text-xs">
               <button
                 className="rounded-lg bg-neutral-800 px-3 py-1.5 hover:bg-neutral-700 transition"
                 onClick={reset}
@@ -305,17 +321,6 @@ export default function Simulator({ restaurant, onBack, initialQty }: Props) {
                 onClick={randomUnderBudget}
               >
                 予算内ランダム
-              </button>
-              <button
-                className={`rounded-lg px-3 py-1.5 transition ${
-                  copied
-                    ? "bg-emerald-700 text-white"
-                    : "bg-neutral-800 hover:bg-neutral-700"
-                }`}
-                onClick={shareUrl}
-                disabled={totals.count === 0}
-              >
-                {copied ? "コピーしました!" : "共有リンク生成"}
               </button>
             </div>
           </div>
@@ -357,8 +362,6 @@ export default function Simulator({ restaurant, onBack, initialQty }: Props) {
           {/* 保存・プリセット */}
           <div className="rounded-2xl border border-neutral-800 p-4">
             <h2 className="mb-3 text-lg font-semibold">保存・プリセット</h2>
-
-            {/* 保存操作 */}
             <div className="flex gap-2">
               <input
                 className="w-full rounded-lg bg-neutral-900 px-3 py-2 text-sm"
@@ -373,118 +376,71 @@ export default function Simulator({ restaurant, onBack, initialQty }: Props) {
                 保存
               </button>
             </div>
+            <div className="mt-2 flex gap-2 text-xs">
+              <button
+                className="rounded-lg bg-neutral-800 px-2 py-1 hover:bg-neutral-700 transition"
+                onClick={exportSaves}
+              >
+                エクスポート
+              </button>
+              <label className="rounded-lg bg-neutral-800 px-2 py-1 hover:bg-neutral-700 transition cursor-pointer">
+                インポート
+                <input
+                  type="file"
+                  accept="application/json"
+                  className="hidden"
+                  onChange={(e) => e.target.files && importSaves(e.target.files[0])}
+                />
+              </label>
+            </div>
 
-            {/* 保存済み一覧（トグル開閉） */}
-            <button
-              className="mt-3 w-full flex items-center justify-between rounded-lg bg-neutral-800 px-3 py-2 text-sm hover:bg-neutral-700 transition"
-              onClick={() => setShowSaveList((v) => !v)}
-            >
-              <span className="text-neutral-300">保存済み一覧（{saves.length}件）</span>
-              <span className="text-neutral-500 text-xs">{showSaveList ? "▲ 閉じる" : "▼ 開く"}</span>
-            </button>
-
-            {showSaveList && (
-              <div className="mt-2">
-                {/* 検索 + 並べ替え */}
-                <div className="flex gap-2 mb-2">
-                  <input
-                    className="flex-1 rounded-lg bg-neutral-900 px-3 py-1.5 text-xs placeholder-neutral-500"
-                    placeholder="保存名で検索..."
-                    value={saveSearch}
-                    onChange={(e) => setSaveSearch(e.target.value)}
-                  />
-                  <select
-                    className="rounded-lg bg-neutral-900 px-2 py-1.5 text-xs text-neutral-300"
-                    value={saveSort}
-                    onChange={(e) => setSaveSort(e.target.value as typeof saveSort)}
-                  >
-                    <option value="date">新しい順</option>
-                    <option value="price-asc">安い順</option>
-                    <option value="price-desc">高い順</option>
-                  </select>
-                </div>
-
-                {/* 一覧 */}
-                <div className="max-h-60 space-y-2 overflow-auto pr-1">
-                  {saves.length === 0 ? (
-                    <div className="text-xs text-neutral-500 text-center py-3">保存データはありません</div>
-                  ) : (() => {
-                    // フィルタ＆ソート
-                    const list = [...saves]
-                      .map((s) => ({ ...s, _totals: computeTotals(items, s.qty) }))
-                      .filter((s) =>
-                        !saveSearch || s.name.toLowerCase().includes(saveSearch.toLowerCase())
-                      )
-                      .sort((a, b) => {
-                        if (saveSort === "price-asc") return a._totals.price - b._totals.price;
-                        if (saveSort === "price-desc") return b._totals.price - a._totals.price;
-                        return b.createdAt - a.createdAt; // date: 新しい順
-                      });
-                    if (list.length === 0) {
-                      return <div className="text-xs text-neutral-500 text-center py-3">該当なし</div>;
-                    }
-                    return list.map((s) => {
-                      const missingCount = Object.keys(s.qty).filter(
-                        (id) => !items.some((it) => it.id === id)
-                      ).length;
-                      return (
-                        <div key={s.id} className="rounded-xl border border-neutral-800 p-2">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <div className="truncate text-sm font-medium">{s.name}</div>
-                              <div className="text-[10px] text-neutral-500">
-                                {new Date(s.createdAt).toLocaleString("ja-JP")}
-                              </div>
-                              <div className="text-[11px] text-neutral-400">
-                                {yen(s._totals.price)} / {s._totals.count} 品
-                              </div>
-                              {missingCount > 0 && (
-                                <div className="text-[10px] text-amber-400">
-                                  ※ {missingCount} 品が現メニューに存在しません
-                                </div>
-                              )}
-                            </div>
-                            <div className="shrink-0 flex gap-1 text-xs">
-                              <button
-                                className="rounded bg-neutral-800 px-2 py-1 hover:bg-neutral-700 transition"
-                                onClick={() => loadSave(s)}
-                              >
-                                読込
-                              </button>
-                              <button
-                                className="rounded bg-neutral-800 px-2 py-1 hover:bg-neutral-700 transition"
-                                onClick={() => deleteSave(s.id)}
-                              >
-                                削除
-                              </button>
-                            </div>
+            {/* 保存一覧 */}
+            <div className="mt-3 max-h-44 space-y-2 overflow-auto pr-1">
+              {saves.length === 0 ? (
+                <div className="text-xs text-neutral-500">保存データはありません</div>
+              ) : (
+                [...saves].reverse().map((s) => {
+                  const preview = computeTotals(items, s.qty);
+                  const missingCount = Object.keys(s.qty).filter(
+                    (id) => !items.some((it) => it.id === id)
+                  ).length;
+                  return (
+                    <div key={s.id} className="rounded-xl border border-neutral-800 p-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-medium">{s.name}</div>
+                          <div className="text-[10px] text-neutral-500">
+                            {new Date(s.createdAt).toLocaleString("ja-JP")}
                           </div>
+                          <div className="text-[11px] text-neutral-400">
+                            {yen(preview.price)} / {preview.count} 品
+                          </div>
+                          {missingCount > 0 && (
+                            <div className="text-[10px] text-amber-400">
+                              ※ {missingCount} 品が現メニューに存在しません
+                            </div>
+                          )}
                         </div>
-                      );
-                    });
-                  })()}
-                </div>
-
-                {/* エクスポート / インポート（下部に小さく） */}
-                <div className="mt-2 flex gap-2 text-xs border-t border-neutral-800 pt-2">
-                  <button
-                    className="rounded-lg bg-neutral-800 px-2 py-1 hover:bg-neutral-700 transition"
-                    onClick={exportSaves}
-                  >
-                    エクスポート
-                  </button>
-                  <label className="rounded-lg bg-neutral-800 px-2 py-1 hover:bg-neutral-700 transition cursor-pointer">
-                    インポート
-                    <input
-                      type="file"
-                      accept="application/json"
-                      className="hidden"
-                      onChange={(e) => e.target.files && importSaves(e.target.files[0])}
-                    />
-                  </label>
-                </div>
-              </div>
-            )}
+                        <div className="shrink-0 flex gap-1 text-xs">
+                          <button
+                            className="rounded bg-neutral-800 px-2 py-1 hover:bg-neutral-700 transition"
+                            onClick={() => loadSave(s)}
+                          >
+                            読込
+                          </button>
+                          <button
+                            className="rounded bg-neutral-800 px-2 py-1 hover:bg-neutral-700 transition"
+                            onClick={() => deleteSave(s.id)}
+                          >
+                            削除
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
         </section>
 
@@ -565,12 +521,11 @@ export default function Simulator({ restaurant, onBack, initialQty }: Props) {
                             return (
                               <div
                                 key={it.id}
-                                className={`rounded-2xl border p-3 transition cursor-pointer ${
+                                className={`rounded-2xl border p-3 transition ${
                                   isOn
                                     ? "border-emerald-500/60 bg-emerald-950/20"
-                                    : "border-neutral-800 bg-neutral-900/30 hover:border-neutral-600"
+                                    : "border-neutral-800 bg-neutral-900/30"
                                 }`}
-                                onClick={() => isOn ? setItemQty(it.id, 0) : addOne(it.id)}
                               >
                                 <div className="flex items-start justify-between gap-2">
                                   <div className="font-medium text-sm leading-snug">{it.name}</div>
@@ -588,11 +543,7 @@ export default function Simulator({ restaurant, onBack, initialQty }: Props) {
                                     ))}
                                   </div>
                                 )}
-                                {/* 数量操作：クリックがカード全体に伝わらないよう stopPropagation */}
-                                <div
-                                  className="mt-2 flex items-center gap-2"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
+                                <div className="mt-2 flex items-center gap-2">
                                   <button
                                     className="h-8 w-8 rounded-lg bg-neutral-800 hover:bg-neutral-700 transition text-base"
                                     onClick={() => subOne(it.id)}
@@ -631,113 +582,96 @@ export default function Simulator({ restaurant, onBack, initialQty }: Props) {
           })}
         </section>
 
+        {/* JSON編集エリア */}
+        {editMode && (
+          <section className="mt-6 rounded-2xl border border-neutral-800 p-4">
+            <h2 className="mb-2 text-lg font-semibold">メニュー編集（JSON）</h2>
+            <p className="mb-2 text-sm text-neutral-400">
+              id は一意に、price は数値で入力してください。category はカテゴリ名と一致させてください。
+            </p>
+            <JsonEditor items={items} setItems={setItems} />
+          </section>
+        )}
+
         <footer className="mt-10 border-t border-neutral-900 pt-4 text-xs text-neutral-500">
           ※ このツールは個人用です。価格は変動することがあります。最新情報は各店舗の公式サイトをご確認ください。
         </footer>
       </div>
+    </div>
+  );
+}
 
-      {/* ========== 固定フッターバー ========== */}
-      {/* fixed bottom-0 = 画面下部に固定。スクロールしても常に表示される */}
-      <div className="fixed bottom-0 left-0 right-0 z-50">
+// ============================================================
+// JSONエディターコンポーネント（サブ）
+// ============================================================
 
-        {/* 選択リストドロワー（バーをタップすると展開） */}
-        {showOrderList && (
-          <div className="mx-auto max-w-6xl bg-neutral-900 border-t border-l border-r border-neutral-700 rounded-t-2xl max-h-72 overflow-y-auto">
-            <div className="px-4 py-3">
-              <div className="mb-2 flex items-center justify-between">
-                <span className="text-sm font-semibold text-neutral-300">選択中のメニュー</span>
-                <button
-                  className="text-xs text-neutral-500 hover:text-red-400 transition"
-                  onClick={(e) => { e.stopPropagation(); reset(); }}
-                >
-                  全クリア
-                </button>
-              </div>
-              {selectedItems.length === 0 ? (
-                <div className="text-sm text-neutral-500 text-center py-4">
-                  まだメニューを選んでいません
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {selectedItems.map((it) => {
-                    const q = getQty(it.id);
-                    return (
-                      <div key={it.id} className="flex items-center gap-2 text-sm">
-                        {/* メニュー名 */}
-                        <span className="flex-1 truncate text-neutral-200">{it.name}</span>
-                        {/* 数量操作 */}
-                        <button
-                          className="h-6 w-6 rounded bg-neutral-700 hover:bg-neutral-600 transition text-xs shrink-0"
-                          onClick={(e) => { e.stopPropagation(); subOne(it.id); }}
-                          aria-label="減らす"
-                        >
-                          −
-                        </button>
-                        <span className="w-5 text-center text-xs shrink-0">{q}</span>
-                        <button
-                          className="h-6 w-6 rounded bg-neutral-700 hover:bg-neutral-600 transition text-xs shrink-0"
-                          onClick={(e) => { e.stopPropagation(); addOne(it.id); }}
-                          aria-label="増やす"
-                        >
-                          ＋
-                        </button>
-                        {/* 小計 */}
-                        <span className="text-xs font-semibold w-16 text-right shrink-0">
-                          {yen(it.price * q)}
-                        </span>
-                        {/* 削除 */}
-                        <button
-                          className="text-neutral-600 hover:text-red-400 transition text-xs px-1 shrink-0"
-                          onClick={(e) => { e.stopPropagation(); setItemQty(it.id, 0); }}
-                          aria-label="削除"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+function JsonEditor({
+  items,
+  setItems,
+}: {
+  items: Item[];
+  setItems: (v: Item[]) => void;
+}) {
+  const [text, setText] = useState(JSON.stringify(items, null, 2));
 
-        {/* メインバー（常時表示） */}
-        <div
-          className="bg-neutral-900 border-t border-neutral-700 cursor-pointer hover:bg-neutral-800 transition select-none"
-          onClick={() => setShowOrderList((v) => !v)}
+  useEffect(() => {
+    setText(JSON.stringify(items, null, 2));
+  }, [items]);
+
+  const tryApply = () => {
+    try {
+      const next = JSON.parse(text);
+      if (!Array.isArray(next)) throw new Error("配列ではありません");
+      next.forEach((it: Item, i: number) => {
+        if (!it.id) throw new Error(`${i + 1} 行目: id がありません`);
+        if (!it.name) throw new Error(`${i + 1} 行目: name がありません`);
+        if (!it.category) throw new Error(`${i + 1} 行目: category がありません`);
+        if (typeof it.price !== "number") throw new Error(`${i + 1} 行目: price が数値ではありません`);
+      });
+      setItems(next);
+      alert("更新しました");
+    } catch (e) {
+      alert("JSONエラー: " + (e as Error).message);
+    }
+  };
+
+  const addTemplate = () => {
+    const tpl: Item = {
+      id: `item_${Date.now()}`,
+      name: "新規メニュー",
+      category: "未分類",
+      price: 500,
+      tags: [],
+    };
+    try {
+      const current = JSON.parse(text);
+      setText(JSON.stringify([...current, tpl], null, 2));
+    } catch {
+      setText(JSON.stringify([tpl], null, 2));
+    }
+  };
+
+  return (
+    <div>
+      <div className="mb-2 flex gap-2 text-xs">
+        <button
+          className="rounded-xl bg-neutral-800 px-3 py-1 hover:bg-neutral-700 transition"
+          onClick={addTemplate}
         >
-          <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
-            {/* 左：品数と展開ヒント */}
-            <div className="flex items-center gap-2">
-              {totals.count > 0 ? (
-                <>
-                  <span className="text-sm font-medium text-neutral-200">{totals.count} 品選択中</span>
-                  <span className="text-xs text-neutral-500">{showOrderList ? "▼ 閉じる" : "▲ 一覧を見る"}</span>
-                </>
-              ) : (
-                <span className="text-sm text-neutral-500">メニューを選んでください</span>
-              )}
-            </div>
-            {/* 右：合計金額と予算状態 */}
-            <div className="flex items-center gap-3">
-              {targets.budget !== undefined && budgetOk && (
-                <span className="text-xs text-emerald-400">
-                  残り {yen(targets.budget - totals.price)}
-                </span>
-              )}
-              {!budgetOk && (
-                <span className="text-xs text-red-400">
-                  {yen(overAmount)} オーバー
-                </span>
-              )}
-              <span className={`text-xl font-bold ${budgetOk ? "text-white" : "text-red-400"}`}>
-                {yen(totals.price)}
-              </span>
-            </div>
-          </div>
-        </div>
+          行を追加
+        </button>
+        <button
+          className="rounded-xl bg-emerald-700 px-3 py-1 hover:bg-emerald-600 transition"
+          onClick={tryApply}
+        >
+          JSONを適用
+        </button>
       </div>
+      <textarea
+        className="h-80 w-full rounded-lg bg-neutral-950 p-3 font-mono text-xs"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+      />
     </div>
   );
 }
@@ -816,19 +750,15 @@ function SetTableGrid({
                   return (
                     <td
                       key={ct}
-                      className={`px-2 py-2 border-r border-neutral-800 last:border-r-0 transition cursor-pointer ${
-                        isOn ? "bg-emerald-950/30" : "hover:bg-neutral-800/50"
+                      className={`px-2 py-2 border-r border-neutral-800 last:border-r-0 transition ${
+                        isOn ? "bg-emerald-950/30" : ""
                       }`}
-                      onClick={() => isOn ? setItemQty(it.id, 0) : addOne(it.id)}
                     >
                       <div className="flex flex-col items-center gap-1">
                         <span className={`text-xs font-semibold ${isOn ? "text-emerald-300" : "text-neutral-200"}`}>
                           {yen(it.price)}
                         </span>
-                        <div
-                          className="flex items-center gap-1"
-                          onClick={(e) => e.stopPropagation()}
-                        >
+                        <div className="flex items-center gap-1">
                           <button
                             className="h-6 w-6 rounded bg-neutral-700 hover:bg-neutral-600 transition text-xs"
                             onClick={() => subOne(it.id)}
@@ -880,21 +810,15 @@ function SetTableGrid({
               return (
                 <div
                   key={it.id}
-                  className={`rounded-2xl border p-3 transition cursor-pointer ${
-                    isOn
-                      ? "border-emerald-500/60 bg-emerald-950/20"
-                      : "border-neutral-800 bg-neutral-900/30 hover:border-neutral-600"
+                  className={`rounded-2xl border p-3 transition ${
+                    isOn ? "border-emerald-500/60 bg-emerald-950/20" : "border-neutral-800 bg-neutral-900/30"
                   }`}
-                  onClick={() => isOn ? setItemQty(it.id, 0) : addOne(it.id)}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="font-medium text-sm leading-snug">{it.name}</div>
                     <div className="shrink-0 text-sm font-semibold">{yen(it.price)}</div>
                   </div>
-                  <div
-                    className="mt-2 flex items-center gap-2"
-                    onClick={(e) => e.stopPropagation()}
-                  >
+                  <div className="mt-2 flex items-center gap-2">
                     <button
                       className="h-8 w-8 rounded-lg bg-neutral-800 hover:bg-neutral-700 transition text-base"
                       onClick={() => subOne(it.id)}
