@@ -177,6 +177,12 @@ const hidakaya: Restaurant = {
     "人気", "定番", "麺類", "ご飯", "肉", "野菜", "セット", "定食", "ラーメン", "おつまみ",
     "餃子", "単品", "辛い", "揚げ物", "トッピング", "キムチ", "味噌", "店舗限定", "とんこつ", "レバー", "サラダ", "期間限定", "デザート", "チーズ",
   ],
+  // カテゴリ別トッピングショートカット（麺大盛+80円 / 飯大盛+70円）
+  categoryAddons: {
+    "ラーメン": ["hd_top_men_omori"],
+    "定食":     ["hd_top_meshi_omori"],
+    "セット":   ["hd_top_men_omori", "hd_top_meshi_omori"],
+  },
 };
 
 export default hidakaya;

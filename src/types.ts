@@ -23,6 +23,7 @@ export type SavedCombo = {
   createdAt: number; // epoch ms
   qty: Record<string, number>;
   targets?: Targets;
+  addonSelections?: Record<string, string[]>; // アイテムID → 選択中トッピングIDリスト
 };
 
 // セットカテゴリを表形式で表示するための設定
@@ -42,4 +43,5 @@ export type Restaurant = {
   defaultTargets: Targets;   // 初回起動時のデフォルト予算
   setTable?: SetTableConfig; // セットカテゴリを表形式で表示する設定（任意）
   tagOrder?: string[];       // タグの表示順序（省略時は出現順）
+  categoryAddons?: Record<string, string[]>; // カテゴリ別トッピングショートカット（カテゴリ名 → トッピングIDリスト）
 };

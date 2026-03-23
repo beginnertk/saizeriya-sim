@@ -14,11 +14,20 @@ const yen = (n: number) =>
 
 const sum = (arr: number[]) => arr.reduce((a, b) => a + b, 0);
 
-function computeTotals(items: Item[], qty: Record<string, number>) {
+function computeTotals(
+  items: Item[],
+  qty: Record<string, number>,
+  addonSelections?: Record<string, string[]>
+) {
   const getQty = (id: string) => Math.max(0, qty[id] || 0);
+  const getAddonPrice = (id: string) =>
+    (addonSelections?.[id] ?? []).reduce((s, aid) => {
+      const a = items.find((x) => x.id === aid);
+      return s + (a?.price ?? 0);
+    }, 0);
   return {
     count: sum(items.map((it) => getQty(it.id))),
-    price: sum(items.map((it) => it.price * getQty(it.id))),
+    price: sum(items.map((it) => (it.price + getAddonPrice(it.id)) * getQty(it.id))),
   };
 }
 
@@ -33,12 +42,19 @@ function simpleFilter(items: Item[], q: string) {
 function createSavedCombo(
   name: string,
   qty: Record<string, number>,
-  targets?: Targets
+  targets?: Targets,
+  addonSelections?: Record<string, string[]>
 ): SavedCombo {
   const compactQty = Object.fromEntries(
     Object.entries(qty)
       .filter(([, v]) => (v || 0) > 0)
       .map(([k, v]) => [k, Math.max(0, Math.floor(v || 0))])
+  );
+  // 選択中アイテムに紐づくアドオンのみ保存
+  const compactAddons = Object.fromEntries(
+    Object.entries(addonSelections ?? {}).filter(
+      ([id, aids]) => (compactQty[id] ?? 0) > 0 && aids.length > 0
+    )
   );
   return {
     id: `save_${Date.now()}`,
@@ -46,6 +62,7 @@ function createSavedCombo(
     createdAt: Date.now(),
     qty: compactQty,
     targets,
+    ...(Object.keys(compactAddons).length > 0 && { addonSelections: compactAddons }),
   };
 }
 
@@ -101,6 +118,10 @@ export default function Simulator({ restaurant, onBack, initialQty }: Props) {
   // ── すべての useState / usePersistentState をここにまとめる ──
   const items = restaurant.items;
   const [qty, setQty] = usePersistentState<Record<string, number>>(`${KEY}:qty`, {});
+  // メニューIDごとのアドオン選択状態（localStorageに保存）
+  const [addonSelections, setAddonSelections] = usePersistentState<Record<string, string[]>>(
+    `${KEY}:addons`, {}
+  );
   const [targets, setTargets] = usePersistentState<Targets>(
     `${KEY}:targets`,
     restaurant.defaultTargets
@@ -119,7 +140,7 @@ export default function Simulator({ restaurant, onBack, initialQty }: Props) {
   const [activeTag, setActiveTag] = useState<string | null>(null);
 
   // ── すべての useMemo をここにまとめる ──
-  const totals = useMemo(() => computeTotals(items, qty), [items, qty]);
+  const totals = useMemo(() => computeTotals(items, qty, addonSelections), [items, qty, addonSelections]);
   const selectedItems = useMemo(
     () => items.filter((it) => (qty[it.id] || 0) > 0),
     [items, qty]
@@ -185,7 +206,7 @@ export default function Simulator({ restaurant, onBack, initialQty }: Props) {
 
   // 保存
   const saveCurrent = () => {
-    const saved = createSavedCombo(saveName, qty, targets);
+    const saved = createSavedCombo(saveName, qty, targets, addonSelections);
     setSaves((prev) => [...prev.slice(-(MAX_SAVES - 1)), saved]);
     setSaveName(new Date().toLocaleString("ja-JP"));
   };
@@ -193,6 +214,7 @@ export default function Simulator({ restaurant, onBack, initialQty }: Props) {
   const loadSave = (s: SavedCombo) => {
     setQty({ ...s.qty });
     if (s.targets) setTargets({ ...s.targets });
+    setAddonSelections(s.addonSelections ? { ...s.addonSelections } : {});
   };
 
   const deleteSave = (id: string) => {
@@ -239,7 +261,7 @@ export default function Simulator({ restaurant, onBack, initialQty }: Props) {
     setQty(next);
   };
 
-  const reset = () => setQty({});
+  const reset = () => { setQty({}); setAddonSelections({}); };
 
   // URLシェア：選択状態をURLハッシュに埋め込んでクリップボードにコピー
   const shareUrl = () => {
@@ -657,6 +679,9 @@ export default function Simulator({ restaurant, onBack, initialQty }: Props) {
                           const q = getQty(it.id);
                           const isOn = q > 0;
                           const isOver = !isOn && remainingBudget !== undefined && remainingBudget >= 0 && it.price > remainingBudget;
+                          const activeAddons = (addonSelections[it.id] ?? [])
+                            .map((aid) => items.find((a) => a.id === aid))
+                            .filter(Boolean) as Item[];
                           return (
                             <div
                               key={it.id}
@@ -681,7 +706,17 @@ export default function Simulator({ restaurant, onBack, initialQty }: Props) {
                               )}
                               <div className="p-3">
                                 <div className="font-medium text-sm leading-snug">{it.name}</div>
-                                <div className={`mt-1 text-sm font-semibold ${isOn ? "text-emerald-400" : isOver ? "text-red-400" : "text-neutral-200"}`}>{yen(it.price)}</div>
+                                {activeAddons.length > 0 ? (
+                                  <div className="mt-1 text-sm font-semibold leading-snug">
+                                    <span className="text-neutral-400">{yen(it.price)}</span>
+                                    {activeAddons.map((a) => (
+                                      <span key={a.id} className="text-amber-400"> +{yen(a.price)}</span>
+                                    ))}
+                                    <span className={isOn ? "text-emerald-400" : "text-neutral-200"}> ={yen(it.price + activeAddons.reduce((s, a) => s + a.price, 0))}</span>
+                                  </div>
+                                ) : (
+                                  <div className={`mt-1 text-sm font-semibold ${isOn ? "text-emerald-400" : isOver ? "text-red-400" : "text-neutral-200"}`}>{yen(it.price)}</div>
+                                )}
                                 {it.tags && it.tags.length > 0 && (
                                   <div
                                     className="mt-1.5 flex flex-wrap gap-1"
@@ -702,6 +737,42 @@ export default function Simulator({ restaurant, onBack, initialQty }: Props) {
                                     ))}
                                   </div>
                                 )}
+                                {/* 関連トッピングショートカット（このメニュー専用ON/OFFトグル） */}
+                                {(() => {
+                                  const addonIds = restaurant.categoryAddons?.[it.category];
+                                  if (!addonIds?.length) return null;
+                                  const selected = addonSelections[it.id] ?? [];
+                                  return (
+                                    <div className="mt-2 flex flex-wrap gap-1" onClick={(e) => e.stopPropagation()}>
+                                      {addonIds.map((aid) => {
+                                        const addon = items.find((a) => a.id === aid);
+                                        if (!addon) return null;
+                                        const isAddonOn = selected.includes(aid);
+                                        return (
+                                          <button
+                                            key={aid}
+                                            className={`rounded px-2 py-0.5 text-[10px] font-medium transition ${
+                                              isAddonOn
+                                                ? "bg-amber-600 text-white"
+                                                : "bg-neutral-700 text-neutral-300 hover:bg-neutral-600"
+                                            }`}
+                                            onClick={() => {
+                                              setAddonSelections((prev) => {
+                                                const cur = prev[it.id] ?? [];
+                                                const next = isAddonOn
+                                                  ? cur.filter((x) => x !== aid)
+                                                  : [...cur, aid];
+                                                return { ...prev, [it.id]: next };
+                                              });
+                                            }}
+                                          >
+                                            {isAddonOn ? "✓ " : ""}{addon.name} +{yen(addon.price)}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  );
+                                })()}
                                 <div
                                   className="mt-2 flex items-center gap-1"
                                   onClick={(e) => e.stopPropagation()}
@@ -770,10 +841,17 @@ export default function Simulator({ restaurant, onBack, initialQty }: Props) {
                 <div className="space-y-2">
                   {selectedItems.map((it) => {
                     const q = getQty(it.id);
+                    const selectedAddons = (addonSelections[it.id] ?? [])
+                      .map((aid) => items.find((a) => a.id === aid))
+                      .filter(Boolean) as Item[];
+                    const addonPrice = selectedAddons.reduce((s, a) => s + a.price, 0);
                     return (
                       <div key={it.id} className="flex items-center gap-2 text-sm">
                         <div className="flex-1 flex flex-wrap items-center gap-1 min-w-0">
                           <span className="text-neutral-200">{it.name}</span>
+                          {selectedAddons.map((a) => (
+                            <span key={a.id} className="text-[10px] text-amber-400 shrink-0">+{a.name}</span>
+                          ))}
                           {it.tags && it.tags.map((t) => (
                             <button
                               key={t}
@@ -804,7 +882,7 @@ export default function Simulator({ restaurant, onBack, initialQty }: Props) {
                           ＋
                         </button>
                         <span className="text-xs font-semibold w-16 text-right shrink-0">
-                          {yen(it.price * q)}
+                          {yen((it.price + addonPrice) * q)}
                         </span>
                         <button
                           className="text-neutral-600 hover:text-red-400 transition text-xs px-1 shrink-0"

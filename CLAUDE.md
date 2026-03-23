@@ -43,8 +43,8 @@ src/
 
 ### localStorageキャッシュ（解決済み）
 - `items` は `restaurant.items` 直接参照（useState・localStorage不使用）
-- `qty`・`targets`・`saves` のみlocalStorage保存
-- 現在のキー: `gaisyoku-sim-v3:{restaurant.id}`
+- `qty`・`targets`・`saves`・`addons` のみlocalStorage保存
+- 現在のキー: `gaisyoku-sim-v3:{restaurant.id}`（サフィックス: `:qty` `:targets` `:saves` `:addons`）
 - メニューデータ変更はF5リロードで即反映（バージョンキー変更不要）
 
 ### 日高屋カテゴリ順序・並び順ルール
@@ -70,15 +70,28 @@ src/
   - 未選択・追加すると予算オーバー（`it.price > remainingBudget` かつ `remainingBudget >= 0`）: 赤系
 - 予算inputは `type="text" inputMode="numeric"` でカンマ表示（`toLocaleString("ja-JP")`）
 
+### アドオン（大盛り等）機能
+- `Restaurant` 型に `categoryAddons?: Record<string, string[]>` フィールドあり
+  - カテゴリ名 → トッピングアイテムIDリストのマッピング
+  - 日高屋: ラーメン→`["hd_top_men_omori"]`、定食→`["hd_top_meshi_omori"]`、セット→両方
+- カードに「✓ 麺大盛 +¥80」トグルボタンを表示。タップでそのメニュー専用ON/OFF（他メニューに連動しない）
+- アドオンON時の価格表示: `¥420（グレー） +¥80（アンバー） =¥500（白/エメラルド）`
+- `addonSelections: Record<string, string[]>` でアイテムIDごとに選択状態を管理
+  - localStorageに保存（キー: `gaisyoku-sim-v3:{id}:addons`）
+  - 保存プリセットにも含まれる（`SavedCombo.addonSelections`）
+  - 合計金額・選択ドロワーの小計にもアドオン価格を反映
+  - URLシェアにはアドオン情報は含まれない（割り切り）
+
 ### 実装済みUI機能（変更時は既存挙動を壊さないこと）
 - カテゴリタブ（通常時=選択数バッジ・タグフィルタ中=タグ該当数バッジ＋該当0は`opacity-40`）
 - セットのみテーブル形式（SetTableGrid）、他はカードグリッド（2〜4列）
 - カードにタグボタン表示（セットカテゴリーを除く）。タップでフィルタON/OFF
+- カードにアドオントグルボタン表示（`categoryAddons` が定義されているカテゴリーのみ）
 - 画像表示（日高屋: `https://hidakaya.hiday.co.jp/hits/outimages/picture/{UUID}`）
 - カード/セルタップで選択トグル・内部±ボタンはstopPropagation
 - 固定フッターバー（合計金額・品数）
-- 選択リストドロワー（フッタータップで展開・1品選択で自動展開）
-- 保存プリセットUI（トグル開閉・検索＋並べ替え）
+- 選択リストドロワー（フッタータップで展開・1品選択で自動展開・アドオン名表示）
+- 保存プリセットUI（トグル開閉・検索＋並べ替え・アドオン設定も保存）
 - URLシェア（`#r=hidakaya&q=item:1,...` 形式・App.tsxで起動時復元）
 - タグクリックフィルタ（予算・検索ボックス内タグ一覧 / カードのタグボタン）
   - タグフィルタ中: 予算・検索ボックスにカテゴリ別件数ボタン表示（タップでタブ移動）
