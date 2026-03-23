@@ -9,6 +9,8 @@ export type Item = {
   category: string;
   price: number;
   tags?: string[];
+  image?: string;    // メニュー画像のURL（任意）
+  setCell?: [string, string]; // セットテーブルの配置 [列タグ, 行タグ]（任意）
 };
 
 export type Targets = {

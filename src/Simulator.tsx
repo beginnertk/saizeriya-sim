@@ -106,8 +106,8 @@ export default function Simulator({ restaurant, onBack, initialQty }: Props) {
     restaurant.defaultTargets
   );
   const [query, setQuery] = useState("");
-  const [openCategories, setOpenCategories] = useState<Set<string>>(
-    () => new Set(restaurant.categories)
+  const [activeCategory, setActiveCategory] = useState<string>(
+    restaurant.categories[0]
   );
   const [saves, setSaves] = usePersistentState<SavedCombo[]>(`${KEY}:saves`, []);
   const [saveName, setSaveName] = useState<string>(() => new Date().toLocaleString("ja-JP"));
@@ -116,6 +116,7 @@ export default function Simulator({ restaurant, onBack, initialQty }: Props) {
   const [saveSearch, setSaveSearch] = useState("");
   const [saveSort, setSaveSort] = useState<"date" | "price-asc" | "price-desc">("date");
   const [copied, setCopied] = useState(false);
+  const [activeTag, setActiveTag] = useState<string | null>(null);
 
   // ── すべての useMemo をここにまとめる ──
   const totals = useMemo(() => computeTotals(items, qty), [items, qty]);
@@ -123,7 +124,13 @@ export default function Simulator({ restaurant, onBack, initialQty }: Props) {
     () => items.filter((it) => (qty[it.id] || 0) > 0),
     [items, qty]
   );
-  const filtered = useMemo(() => simpleFilter(items, query), [items, query]);
+  const filtered = useMemo(() => {
+    let result = simpleFilter(items, query);
+    if (activeTag) {
+      result = result.filter((it) => it.tags?.includes(activeTag));
+    }
+    return result;
+  }, [items, query, activeTag]);
 
   // ── すべての useEffect をここにまとめる ──
 
@@ -138,14 +145,6 @@ export default function Simulator({ restaurant, onBack, initialQty }: Props) {
   }, [totals.count]);
 
   // ── 関数定義 ──
-
-  const toggleCategory = (cat: string) =>
-    setOpenCategories((prev) => {
-      const next = new Set(prev);
-      if (next.has(cat)) next.delete(cat);
-      else next.add(cat);
-      return next;
-    });
 
   // 数量操作
   const getQty = (id: string) => Math.max(0, qty[id] || 0);
@@ -350,6 +349,18 @@ export default function Simulator({ restaurant, onBack, initialQty }: Props) {
               />
             </div>
 
+            {activeTag && (
+              <div className="mt-2 flex items-center gap-2">
+                <span className="text-xs text-neutral-400">タグ絞り込み:</span>
+                <button
+                  className="flex items-center gap-1 rounded-full bg-emerald-700 px-2.5 py-1 text-xs text-white hover:bg-emerald-600 transition"
+                  onClick={() => setActiveTag(null)}
+                >
+                  #{activeTag} ✕
+                </button>
+              </div>
+            )}
+
             <div className="mt-3 text-xs text-neutral-500">
               表示中: {filtered.length} / {items.length} 品
             </div>
@@ -488,143 +499,148 @@ export default function Simulator({ restaurant, onBack, initialQty }: Props) {
           </div>
         </section>
 
-        {/* メニュー一覧 */}
+        {/* カテゴリタブ */}
         <section className="mt-6">
-          {restaurant.categories.map((cat) => {
-            const group = filtered.filter((it) => it.category === cat);
-            const totalCount = restaurant.items.filter((it) => it.category === cat).length;
-            if (!group.length && !totalCount) return null;
-            const isOpen = openCategories.has(cat);
-            const isSetTable = restaurant.setTable?.category === cat;
-            return (
-              <div key={cat} className="mb-4">
-                {/* カテゴリヘッダー（クリックで折り畳み） */}
+          <div className="flex gap-1 overflow-x-auto pb-2 scrollbar-hide">
+            {restaurant.categories.map((cat) => {
+              const catCount = restaurant.items.filter((it) => it.category === cat).reduce((s, it) => s + getQty(it.id), 0);
+              return (
                 <button
-                  className="w-full mb-2 flex items-center justify-between rounded-xl bg-neutral-800 px-4 py-3 hover:bg-neutral-700 transition"
-                  onClick={() => toggleCategory(cat)}
+                  key={cat}
+                  className={`relative shrink-0 rounded-lg px-4 py-2 text-sm font-medium transition ${
+                    activeCategory === cat
+                      ? "bg-emerald-700 text-white"
+                      : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
+                  }`}
+                  onClick={() => setActiveCategory(cat)}
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="text-base font-semibold">{cat}</span>
-                    <span className="text-xs text-neutral-400">{totalCount}品</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    {group.some((g) => getQty(g.id) > 0) && (
-                      <span className="rounded-full bg-emerald-700 px-2 py-0.5 text-xs font-medium">
-                        {group.reduce((s, g) => s + getQty(g.id), 0)}点選択中
-                      </span>
-                    )}
-                    <span className="text-neutral-400 text-sm">{isOpen ? "▲" : "▼"}</span>
-                  </div>
+                  {cat}
+                  {catCount > 0 && (
+                    <span className="ml-1.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-white/20 px-1 text-[10px] font-bold">
+                      {catCount}
+                    </span>
+                  )}
                 </button>
+              );
+            })}
+          </div>
 
-                {isOpen && (
+          {/* アクティブカテゴリのコンテンツ */}
+          {(() => {
+            const cat = activeCategory;
+            const group = filtered.filter((it) => it.category === cat);
+            const isSetTable = restaurant.setTable?.category === cat;
+
+            return (
+              <div className="mt-4">
+                {isSetTable && restaurant.setTable ? (
+                  <SetTableGrid
+                    config={restaurant.setTable}
+                    group={group}
+                    getQty={getQty}
+                    addOne={addOne}
+                    subOne={subOne}
+                    setItemQty={setItemQty}
+                    yen={yen}
+                    qty={qty}
+                    setQty={setQty}
+                    activeTag={activeTag}
+                    setActiveTag={setActiveTag}
+                  />
+                ) : (
                   <>
-                    {isSetTable && restaurant.setTable ? (
-                      <SetTableGrid
-                        config={restaurant.setTable}
-                        group={group}
-                        getQty={getQty}
-                        addOne={addOne}
-                        subOne={subOne}
-                        setItemQty={setItemQty}
-                        yen={yen}
-                        qty={qty}
-                        setQty={setQty}
-                      />
+                    <div className="mb-3 flex items-center justify-between">
+                      <h2 className="text-lg font-bold">{cat}</h2>
+                      <div className="flex gap-2 text-xs">
+                        <button
+                          className="rounded-lg bg-neutral-800 px-2 py-1 hover:bg-neutral-700 transition"
+                          onClick={() => {
+                            const next = { ...qty };
+                            group.forEach((g) => (next[g.id] = (next[g.id] || 0) + 1));
+                            setQty(next);
+                          }}
+                        >
+                          全て+1
+                        </button>
+                        <button
+                          className="rounded-lg bg-neutral-800 px-2 py-1 hover:bg-neutral-700 transition"
+                          onClick={() => {
+                            const next = { ...qty };
+                            group.forEach((g) => (next[g.id] = 0));
+                            setQty(next);
+                          }}
+                        >
+                          解除
+                        </button>
+                      </div>
+                    </div>
+                    {group.length === 0 ? (
+                      <div className="text-center text-neutral-500 py-8">該当するメニューがありません</div>
                     ) : (
-                      <>
-                        <div className="mb-2 flex justify-end gap-2 text-xs">
-                          <button
-                            className="rounded-lg bg-neutral-900 px-2 py-1 hover:bg-neutral-800 transition"
-                            onClick={() => {
-                              const next = { ...qty };
-                              group.forEach((g) => (next[g.id] = (next[g.id] || 0) + 1));
-                              setQty(next);
-                            }}
-                          >
-                            このカテゴリを+1
-                          </button>
-                          <button
-                            className="rounded-lg bg-neutral-900 px-2 py-1 hover:bg-neutral-800 transition"
-                            onClick={() => {
-                              const next = { ...qty };
-                              group.forEach((g) => (next[g.id] = 0));
-                              setQty(next);
-                            }}
-                          >
-                            解除
-                          </button>
-                        </div>
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                          {group.map((it) => {
-                            const q = getQty(it.id);
-                            const isOn = q > 0;
-                            return (
-                              <div
-                                key={it.id}
-                                className={`rounded-2xl border p-3 transition cursor-pointer ${
-                                  isOn
-                                    ? "border-emerald-500/60 bg-emerald-950/20"
-                                    : "border-neutral-800 bg-neutral-900/30 hover:border-neutral-600"
-                                }`}
-                                onClick={() => isOn ? setItemQty(it.id, 0) : addOne(it.id)}
-                              >
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="font-medium text-sm leading-snug">{it.name}</div>
-                                  <div className="shrink-0 text-sm font-semibold">{yen(it.price)}</div>
+                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                        {group.map((it) => {
+                          const q = getQty(it.id);
+                          const isOn = q > 0;
+                          return (
+                            <div
+                              key={it.id}
+                              className={`rounded-2xl border overflow-hidden transition cursor-pointer ${
+                                isOn
+                                  ? "border-emerald-500/60 bg-emerald-950/20"
+                                  : "border-neutral-800 bg-neutral-900/30 hover:border-neutral-600"
+                              }`}
+                              onClick={() => isOn ? setItemQty(it.id, 0) : addOne(it.id)}
+                            >
+                              {it.image && (
+                                <div className="w-full aspect-[4/3] bg-neutral-800 overflow-hidden">
+                                  <img
+                                    src={it.image}
+                                    alt={it.name}
+                                    className="w-full h-full object-cover"
+                                    loading="lazy"
+                                  />
                                 </div>
-                                {it.tags && it.tags.length > 0 && (
-                                  <div className="mt-1 flex flex-wrap gap-1">
-                                    {it.tags.map((t) => (
-                                      <span
-                                        key={t}
-                                        className="rounded bg-neutral-800 px-1.5 py-0.5 text-[10px] text-neutral-300"
-                                      >
-                                        #{t}
-                                      </span>
-                                    ))}
-                                  </div>
-                                )}
+                              )}
+                              <div className="p-3">
+                                <div className="font-medium text-sm leading-snug">{it.name}</div>
+                                <div className="mt-1 text-sm font-semibold text-emerald-400">{yen(it.price)}</div>
                                 <div
-                                  className="mt-2 flex items-center gap-2"
+                                  className="mt-2 flex items-center gap-1"
                                   onClick={(e) => e.stopPropagation()}
                                 >
                                   <button
-                                    className="h-8 w-8 rounded-lg bg-neutral-800 hover:bg-neutral-700 transition text-base"
+                                    className="h-7 w-7 rounded-lg bg-neutral-800 hover:bg-neutral-700 transition text-sm"
                                     onClick={() => subOne(it.id)}
                                     aria-label="減らす"
                                   >
                                     −
                                   </button>
                                   <input
-                                    className="w-14 rounded-lg bg-neutral-900 px-2 py-1 text-center text-sm"
+                                    className="w-10 rounded-lg bg-neutral-900 px-1 py-1 text-center text-sm"
                                     type="number"
                                     min={0}
                                     value={q}
                                     onChange={(e) => setItemQty(it.id, Number(e.target.value))}
                                   />
                                   <button
-                                    className="h-8 w-8 rounded-lg bg-neutral-800 hover:bg-neutral-700 transition text-base"
+                                    className="h-7 w-7 rounded-lg bg-neutral-800 hover:bg-neutral-700 transition text-sm"
                                     onClick={() => addOne(it.id)}
                                     aria-label="増やす"
                                   >
                                     ＋
                                   </button>
-                                  <div className="ml-auto text-xs text-neutral-400">
-                                    小計: {yen(it.price * q)}
-                                  </div>
                                 </div>
                               </div>
-                            );
-                          })}
-                        </div>
-                      </>
+                            </div>
+                          );
+                        })}
+                      </div>
                     )}
                   </>
                 )}
               </div>
             );
-          })}
+          })()}
         </section>
 
         <footer className="mt-10 border-t border-neutral-900 pt-4 text-xs text-neutral-500">
@@ -658,7 +674,22 @@ export default function Simulator({ restaurant, onBack, initialQty }: Props) {
                     const q = getQty(it.id);
                     return (
                       <div key={it.id} className="flex items-center gap-2 text-sm">
-                        <span className="flex-1 truncate text-neutral-200">{it.name}</span>
+                        <div className="flex-1 flex flex-wrap items-center gap-1 min-w-0">
+                          <span className="text-neutral-200">{it.name}</span>
+                          {it.tags && it.tags.map((t) => (
+                            <button
+                              key={t}
+                              className={`rounded px-1.5 py-0.5 text-[10px] transition shrink-0 ${
+                                activeTag === t
+                                  ? "bg-emerald-700 text-white"
+                                  : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700"
+                              }`}
+                              onClick={(e) => { e.stopPropagation(); setActiveTag(t === activeTag ? null : t); }}
+                            >
+                              #{t}
+                            </button>
+                          ))}
+                        </div>
                         <button
                           className="h-6 w-6 rounded bg-neutral-700 hover:bg-neutral-600 transition text-xs shrink-0"
                           onClick={(e) => { e.stopPropagation(); subOne(it.id); }}
@@ -745,6 +776,8 @@ function SetTableGrid({
   yen,
   qty,
   setQty,
+  activeTag,
+  setActiveTag,
 }: {
   config: SetTableConfig;
   group: Item[];
@@ -755,14 +788,15 @@ function SetTableGrid({
   yen: (n: number) => string;
   qty: Record<string, number>;
   setQty: (v: Record<string, number> | ((p: Record<string, number>) => Record<string, number>)) => void;
+  activeTag: string | null;
+  setActiveTag: (tag: string | null) => void;
 }) {
   const lookup: Record<string, Record<string, Item>> = {};
   for (const it of group) {
-    const colTag = config.colTags.find((ct) => it.tags?.includes(`ramen:${ct}`));
-    const rowTag = config.rowTags.find((rt) => it.tags?.includes(`side:${rt}`));
-    if (colTag && rowTag) {
-      if (!lookup[colTag]) lookup[colTag] = {};
-      lookup[colTag][rowTag] = it;
+    if (it.setCell) {
+      const [col, row] = it.setCell;
+      if (!lookup[col]) lookup[col] = {};
+      lookup[col][row] = it;
     }
   }
 
@@ -808,6 +842,14 @@ function SetTableGrid({
                       onClick={() => isOn ? setItemQty(it.id, 0) : addOne(it.id)}
                     >
                       <div className="flex flex-col items-center gap-1">
+                        {it.image && (
+                          <img
+                            src={it.image}
+                            alt={it.name}
+                            className="w-12 h-9 object-cover rounded"
+                            loading="lazy"
+                          />
+                        )}
                         <span className={`text-xs font-semibold ${isOn ? "text-emerald-300" : "text-neutral-200"}`}>
                           {yen(it.price)}
                         </span>
@@ -856,7 +898,6 @@ function SetTableGrid({
 
       {specialItems.length > 0 && (
         <div className="mt-4">
-          <div className="mb-2 text-xs text-neutral-400">単独セット</div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {specialItems.map((it) => {
               const q = getQty(it.id);
@@ -864,13 +905,24 @@ function SetTableGrid({
               return (
                 <div
                   key={it.id}
-                  className={`rounded-2xl border p-3 transition cursor-pointer ${
+                  className={`rounded-2xl border overflow-hidden transition cursor-pointer ${
                     isOn
                       ? "border-emerald-500/60 bg-emerald-950/20"
                       : "border-neutral-800 bg-neutral-900/30 hover:border-neutral-600"
                   }`}
                   onClick={() => isOn ? setItemQty(it.id, 0) : addOne(it.id)}
                 >
+                  {it.image && (
+                    <div className="w-full aspect-[4/3] bg-neutral-800 overflow-hidden">
+                      <img
+                        src={it.image}
+                        alt={it.name}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                    </div>
+                  )}
+                  <div className="p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="font-medium text-sm leading-snug">{it.name}</div>
                     <div className="shrink-0 text-sm font-semibold">{yen(it.price)}</div>
@@ -903,6 +955,7 @@ function SetTableGrid({
                     <div className="ml-auto text-xs text-neutral-400">
                       小計: {yen(it.price * q)}
                     </div>
+                  </div>
                   </div>
                 </div>
               );
