@@ -36,6 +36,10 @@ const saizeriya: Restaurant = {
     { id: "sz_tiramisu",             name: "ティラミス",                             category: "デザート", price: 300, tags: ["デザート", "スイーツ"] },
     { id: "sz_truffle_ice",          name: "トリフアイスクリーム",                   category: "デザート", price: 350, tags: ["デザート", "スイーツ"] },
   ],
+  tagOrder: [
+    "主食", "パスタ", "チーズ", "肉", "野菜", "おかず", "サラダ/前菜",
+    "ピザ", "パン", "スイーツ", "デザート", "卵", "人気", "定番", "辛い", "スパイス", "サラダ",
+  ],
 };
 
 export default saizeriya;

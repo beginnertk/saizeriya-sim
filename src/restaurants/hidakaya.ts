@@ -173,6 +173,10 @@ const hidakaya: Restaurant = {
     { id: "hd_top_menma",            name: "メンマ",                 category: "トッピング", price: 170, tags: ["トッピング"], image: "https://hidakaya.hiday.co.jp/hits/outimages/picture/3fbda4c1-2886-42a3-841f-914f472be127" },
     { id: "hd_top_chashumen_3",      name: "チャーシュー（3枚）",    category: "トッピング", price: 330, tags: ["トッピング", "肉"], image: "https://hidakaya.hiday.co.jp/hits/outimages/picture/cfa997ef-9cec-42d0-adbc-c3ccc0cade5b" },
   ],
+  tagOrder: [
+    "人気", "定番", "麺類", "ご飯", "肉", "野菜", "セット", "定食", "ラーメン", "おつまみ",
+    "餃子", "単品", "辛い", "揚げ物", "トッピング", "キムチ", "味噌", "店舗限定", "とんこつ", "レバー", "サラダ", "期間限定", "デザート", "チーズ",
+  ],
 };
 
 export default hidakaya;

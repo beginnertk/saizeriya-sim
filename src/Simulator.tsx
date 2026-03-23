@@ -132,6 +132,28 @@ export default function Simulator({ restaurant, onBack, initialQty }: Props) {
     return result;
   }, [items, query, activeTag]);
 
+  // 全タグをtagOrder順で並べたリスト（タグ一覧表示用）
+  const allTagsSorted = useMemo(() => {
+    const tagSet = new Set<string>();
+    items.forEach((it) => it.tags?.forEach((t) => tagSet.add(t)));
+    tagSet.delete("special");
+    const order = restaurant.tagOrder ?? [];
+    const ordered = order.filter((t) => tagSet.has(t));
+    const rest = [...tagSet].filter((t) => !order.includes(t));
+    return [...ordered, ...rest];
+  }, [items, restaurant.tagOrder]);
+
+  // タグフィルタ中のカテゴリー別件数（タブバッジ・内訳表示用）
+  const tagCategoryCounts = useMemo(() => {
+    if (!activeTag) return null;
+    const counts: Record<string, number> = {};
+    for (const cat of restaurant.categories) {
+      const n = items.filter((it) => it.category === cat && it.tags?.includes(activeTag)).length;
+      if (n > 0) counts[cat] = n;
+    }
+    return counts;
+  }, [activeTag, items, restaurant.categories]);
+
   // ── すべての useEffect をここにまとめる ──
 
   // URLシェアから開いた場合、共有された数量を適用
@@ -159,6 +181,7 @@ export default function Simulator({ restaurant, onBack, initialQty }: Props) {
   const budgetOk =
     targets.budget === undefined ? true : totals.price <= targets.budget;
   const overAmount = targets.budget !== undefined ? totals.price - targets.budget : 0;
+  const remainingBudget = targets.budget !== undefined ? targets.budget - totals.price : undefined;
 
   // 保存
   const saveCurrent = () => {
@@ -326,16 +349,19 @@ export default function Simulator({ restaurant, onBack, initialQty }: Props) {
             <div className="flex items-center gap-2 text-sm">
               <span className="shrink-0 text-neutral-400">予算上限</span>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
                 className="w-full rounded-lg bg-neutral-900 px-3 py-1.5 text-right"
-                value={targets.budget ?? ""}
-                placeholder="例: 1000"
-                onChange={(e) =>
+                value={targets.budget !== undefined ? targets.budget.toLocaleString("ja-JP") : ""}
+                placeholder="例: 1,000"
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/,/g, "");
+                  const n = Number(raw);
                   setTargets({
                     ...targets,
-                    budget: Number(e.target.value) || undefined,
-                  })
-                }
+                    budget: raw === "" ? undefined : (Number.isFinite(n) && n > 0 ? n : targets.budget),
+                  });
+                }}
               />
               <span className="shrink-0 text-neutral-400">円</span>
             </div>
@@ -349,15 +375,53 @@ export default function Simulator({ restaurant, onBack, initialQty }: Props) {
               />
             </div>
 
-            {activeTag && (
-              <div className="mt-2 flex items-center gap-2">
-                <span className="text-xs text-neutral-400">タグ絞り込み:</span>
+            {/* タグ一覧 */}
+            <div className="mt-2 flex flex-wrap gap-1">
+              {allTagsSorted.map((t) => (
                 <button
-                  className="flex items-center gap-1 rounded-full bg-emerald-700 px-2.5 py-1 text-xs text-white hover:bg-emerald-600 transition"
-                  onClick={() => setActiveTag(null)}
+                  key={t}
+                  className={`rounded px-2 py-0.5 text-[11px] transition ${
+                    activeTag === t
+                      ? "bg-emerald-700 text-white"
+                      : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700"
+                  }`}
+                  onClick={() => setActiveTag(t === activeTag ? null : t)}
                 >
-                  #{activeTag} ✕
+                  #{t}
                 </button>
+              ))}
+            </div>
+
+            {activeTag && (
+              <div className="mt-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-neutral-400">タグ絞り込み:</span>
+                  <button
+                    className="flex items-center gap-1 rounded-full bg-emerald-700 px-2.5 py-1 text-xs text-white hover:bg-emerald-600 transition"
+                    onClick={() => setActiveTag(null)}
+                  >
+                    #{activeTag} ✕
+                  </button>
+                </div>
+                {tagCategoryCounts && (
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    {restaurant.categories
+                      .filter((cat) => tagCategoryCounts[cat])
+                      .map((cat) => (
+                        <button
+                          key={cat}
+                          className={`rounded px-2 py-0.5 text-[10px] transition ${
+                            activeCategory === cat
+                              ? "bg-emerald-700 text-white"
+                              : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700"
+                          }`}
+                          onClick={() => setActiveCategory(cat)}
+                        >
+                          {cat} {tagCategoryCounts[cat]}品
+                        </button>
+                      ))}
+                  </div>
+                )}
               </div>
             )}
 
@@ -504,6 +568,8 @@ export default function Simulator({ restaurant, onBack, initialQty }: Props) {
           <div className="flex gap-1 overflow-x-auto pb-2 scrollbar-hide">
             {restaurant.categories.map((cat) => {
               const catCount = restaurant.items.filter((it) => it.category === cat).reduce((s, it) => s + getQty(it.id), 0);
+              const tagCount = tagCategoryCounts ? (tagCategoryCounts[cat] ?? 0) : 0;
+              const dimmed = tagCategoryCounts !== null && tagCount === 0;
               return (
                 <button
                   key={cat}
@@ -511,14 +577,22 @@ export default function Simulator({ restaurant, onBack, initialQty }: Props) {
                     activeCategory === cat
                       ? "bg-emerald-700 text-white"
                       : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
-                  }`}
+                  } ${dimmed ? "opacity-40" : ""}`}
                   onClick={() => setActiveCategory(cat)}
                 >
                   {cat}
-                  {catCount > 0 && (
-                    <span className="ml-1.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-white/20 px-1 text-[10px] font-bold">
-                      {catCount}
-                    </span>
+                  {tagCategoryCounts ? (
+                    tagCount > 0 && (
+                      <span className="ml-1.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-white/20 px-1 text-[10px] font-bold">
+                        {tagCount}
+                      </span>
+                    )
+                  ) : (
+                    catCount > 0 && (
+                      <span className="ml-1.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-white/20 px-1 text-[10px] font-bold">
+                        {catCount}
+                      </span>
+                    )
                   )}
                 </button>
               );
@@ -546,6 +620,7 @@ export default function Simulator({ restaurant, onBack, initialQty }: Props) {
                     setQty={setQty}
                     activeTag={activeTag}
                     setActiveTag={setActiveTag}
+                    remainingBudget={remainingBudget}
                   />
                 ) : (
                   <>
@@ -581,13 +656,16 @@ export default function Simulator({ restaurant, onBack, initialQty }: Props) {
                         {group.map((it) => {
                           const q = getQty(it.id);
                           const isOn = q > 0;
+                          const isOver = !isOn && remainingBudget !== undefined && remainingBudget >= 0 && it.price > remainingBudget;
                           return (
                             <div
                               key={it.id}
                               className={`rounded-2xl border overflow-hidden transition cursor-pointer ${
                                 isOn
                                   ? "border-emerald-500/60 bg-emerald-950/20"
-                                  : "border-neutral-800 bg-neutral-900/30 hover:border-neutral-600"
+                                  : isOver
+                                  ? "border-red-500/50 bg-red-950/20 hover:border-red-400"
+                                  : "border-neutral-500/50 bg-neutral-800/50 hover:border-neutral-400"
                               }`}
                               onClick={() => isOn ? setItemQty(it.id, 0) : addOne(it.id)}
                             >
@@ -603,7 +681,27 @@ export default function Simulator({ restaurant, onBack, initialQty }: Props) {
                               )}
                               <div className="p-3">
                                 <div className="font-medium text-sm leading-snug">{it.name}</div>
-                                <div className="mt-1 text-sm font-semibold text-emerald-400">{yen(it.price)}</div>
+                                <div className={`mt-1 text-sm font-semibold ${isOn ? "text-emerald-400" : isOver ? "text-red-400" : "text-neutral-200"}`}>{yen(it.price)}</div>
+                                {it.tags && it.tags.length > 0 && (
+                                  <div
+                                    className="mt-1.5 flex flex-wrap gap-1"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    {it.tags.map((t) => (
+                                      <button
+                                        key={t}
+                                        className={`rounded px-1.5 py-0.5 text-[10px] transition ${
+                                          activeTag === t
+                                            ? "bg-emerald-700 text-white"
+                                            : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700"
+                                        }`}
+                                        onClick={() => setActiveTag(t === activeTag ? null : t)}
+                                      >
+                                        #{t}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
                                 <div
                                   className="mt-2 flex items-center gap-1"
                                   onClick={(e) => e.stopPropagation()}
@@ -778,6 +876,7 @@ function SetTableGrid({
   setQty,
   activeTag,
   setActiveTag,
+  remainingBudget,
 }: {
   config: SetTableConfig;
   group: Item[];
@@ -790,6 +889,7 @@ function SetTableGrid({
   setQty: (v: Record<string, number> | ((p: Record<string, number>) => Record<string, number>)) => void;
   activeTag: string | null;
   setActiveTag: (tag: string | null) => void;
+  remainingBudget?: number;
 }) {
   const lookup: Record<string, Record<string, Item>> = {};
   for (const it of group) {
@@ -833,11 +933,12 @@ function SetTableGrid({
                   );
                   const q = getQty(it.id);
                   const isOn = q > 0;
+                  const isOver = !isOn && remainingBudget !== undefined && remainingBudget >= 0 && it.price > remainingBudget;
                   return (
                     <td
                       key={ct}
                       className={`px-2 py-2 border-r border-neutral-800 last:border-r-0 transition cursor-pointer ${
-                        isOn ? "bg-emerald-950/30" : "hover:bg-neutral-800/50"
+                        isOn ? "bg-emerald-950/30" : isOver ? "bg-red-950/20 hover:bg-red-950/40" : "hover:bg-neutral-800/50"
                       }`}
                       onClick={() => isOn ? setItemQty(it.id, 0) : addOne(it.id)}
                     >
@@ -850,7 +951,7 @@ function SetTableGrid({
                             loading="lazy"
                           />
                         )}
-                        <span className={`text-xs font-semibold ${isOn ? "text-emerald-300" : "text-neutral-200"}`}>
+                        <span className={`text-xs font-semibold ${isOn ? "text-emerald-300" : isOver ? "text-red-400" : "text-neutral-200"}`}>
                           {yen(it.price)}
                         </span>
                         <div
@@ -902,13 +1003,16 @@ function SetTableGrid({
             {specialItems.map((it) => {
               const q = getQty(it.id);
               const isOn = q > 0;
+              const isOver = !isOn && remainingBudget !== undefined && remainingBudget >= 0 && it.price > remainingBudget;
               return (
                 <div
                   key={it.id}
                   className={`rounded-2xl border overflow-hidden transition cursor-pointer ${
                     isOn
                       ? "border-emerald-500/60 bg-emerald-950/20"
-                      : "border-neutral-800 bg-neutral-900/30 hover:border-neutral-600"
+                      : isOver
+                      ? "border-red-500/50 bg-red-950/20 hover:border-red-400"
+                      : "border-neutral-500/50 bg-neutral-800/50 hover:border-neutral-400"
                   }`}
                   onClick={() => isOn ? setItemQty(it.id, 0) : addOne(it.id)}
                 >
@@ -925,7 +1029,7 @@ function SetTableGrid({
                   <div className="p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="font-medium text-sm leading-snug">{it.name}</div>
-                    <div className="shrink-0 text-sm font-semibold">{yen(it.price)}</div>
+                    <div className={`shrink-0 text-sm font-semibold ${isOn ? "text-emerald-400" : isOver ? "text-red-400" : "text-neutral-200"}`}>{yen(it.price)}</div>
                   </div>
                   <div
                     className="mt-2 flex items-center gap-2"

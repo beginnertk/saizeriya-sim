@@ -41,4 +41,5 @@ export type Restaurant = {
   items: Item[];             // メニュー一覧
   defaultTargets: Targets;   // 初回起動時のデフォルト予算
   setTable?: SetTableConfig; // セットカテゴリを表形式で表示する設定（任意）
+  tagOrder?: string[];       // タグの表示順序（省略時は出現順）
 };
