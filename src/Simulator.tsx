@@ -109,9 +109,10 @@ type Props = {
   restaurant: Restaurant;
   onBack: () => void;
   initialQty?: Record<string, number> | null;
+  initialCloudId?: string | null;
 };
 
-export default function Simulator({ restaurant, onBack, initialQty }: Props) {
+export default function Simulator({ restaurant, onBack, initialQty, initialCloudId }: Props) {
   // ストレージキーをレストランIDごとに分離（サイゼリヤと日高屋のデータが混ざらない）
   const KEY = `gaisyoku-sim-v3:${restaurant.id}`;
 
@@ -138,6 +139,8 @@ export default function Simulator({ restaurant, onBack, initialQty }: Props) {
   const [saveSort, setSaveSort] = useState<"date" | "price-asc" | "price-desc">("date");
   const [copied, setCopied] = useState(false);
   const [activeTag, setActiveTag] = useState<string | null>(null);
+  const [cloudId, setCloudId] = usePersistentState<string | null>(`${KEY}:cloudId`, null);
+  const [cloudStatus, setCloudStatus] = useState<"idle" | "saving" | "loading" | "ok" | "error">("idle");
 
   // ── すべての useMemo をここにまとめる ──
   const totals = useMemo(() => computeTotals(items, qty, addonSelections), [items, qty, addonSelections]);
@@ -180,6 +183,11 @@ export default function Simulator({ restaurant, onBack, initialQty }: Props) {
   // URLシェアから開いた場合、共有された数量を適用
   useEffect(() => {
     if (initialQty) setQty(initialQty);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // URLシェアで cloudId が渡された場合、起動時に自動読み込み
+  useEffect(() => {
+    if (initialCloudId) cloudLoadById(initialCloudId);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 1品でも選んだら自動でドロワーを開く
@@ -244,6 +252,74 @@ export default function Simulator({ restaurant, onBack, initialQty }: Props) {
       }
     };
     reader.readAsText(file);
+  };
+
+  // ── クラウド保存・読み込み（jsonblob.com） ──
+
+  const cloudSave = async () => {
+    setCloudStatus("saving");
+    try {
+      const body = JSON.stringify({ saves });
+      if (cloudId) {
+        const res = await fetch(`https://jsonblob.com/api/jsonBlob/${cloudId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", "Accept": "application/json" },
+          body,
+        });
+        if (!res.ok) throw new Error("更新失敗");
+      } else {
+        const res = await fetch("https://jsonblob.com/api/jsonBlob", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Accept": "application/json" },
+          body,
+        });
+        if (!res.ok) throw new Error("作成失敗");
+        const loc = res.headers.get("Location") ?? "";
+        const newId = loc.split("/").pop() ?? "";
+        if (!newId) throw new Error("ID取得失敗");
+        setCloudId(newId);
+      }
+      setCloudStatus("ok");
+      setTimeout(() => setCloudStatus("idle"), 2000);
+    } catch {
+      setCloudStatus("error");
+      setTimeout(() => setCloudStatus("idle"), 3000);
+    }
+  };
+
+  const cloudLoadById = async (id: string) => {
+    setCloudStatus("loading");
+    try {
+      const res = await fetch(`https://jsonblob.com/api/jsonBlob/${id}`, {
+        headers: { "Accept": "application/json" },
+      });
+      if (!res.ok) throw new Error("読み込み失敗");
+      const data = await res.json();
+      const incoming: SavedCombo[] = Array.isArray(data.saves)
+        ? data.saves.filter((s: unknown) => validateSavedCombo(s))
+        : [];
+      setSaves((prev) => {
+        const existingIds = new Set(prev.map((s) => s.id));
+        const newOnes = incoming.filter((s) => !existingIds.has(s.id));
+        return [...prev, ...newOnes].slice(-MAX_SAVES);
+      });
+      setCloudId(id);
+      setCloudStatus("ok");
+      setTimeout(() => setCloudStatus("idle"), 2000);
+    } catch {
+      setCloudStatus("error");
+      setTimeout(() => setCloudStatus("idle"), 3000);
+    }
+  };
+
+  const shareCloudUrl = () => {
+    if (!cloudId) return;
+    const base = window.location.href.split("#")[0];
+    const url = `${base}#r=${restaurant.id}&cloud=${cloudId}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
   };
 
   // ランダム選定
@@ -470,6 +546,67 @@ export default function Simulator({ restaurant, onBack, initialQty }: Props) {
               >
                 保存
               </button>
+            </div>
+
+            {/* クラウド同期 */}
+            <div className="mt-3 rounded-xl border border-neutral-700 bg-neutral-900/60 px-3 py-2">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-medium text-neutral-300">クラウド同期</span>
+                {cloudId && (
+                  <span className="text-[10px] text-neutral-500 truncate max-w-[120px]">ID: {cloudId}</span>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1.5 text-xs">
+                <button
+                  className={`rounded-lg px-3 py-1.5 transition font-medium ${
+                    cloudStatus === "saving"
+                      ? "bg-neutral-700 text-neutral-400 cursor-not-allowed"
+                      : cloudStatus === "ok"
+                      ? "bg-emerald-700 text-white"
+                      : cloudStatus === "error"
+                      ? "bg-red-800 text-white"
+                      : "bg-sky-700 hover:bg-sky-600 text-white"
+                  }`}
+                  onClick={cloudSave}
+                  disabled={cloudStatus === "saving" || cloudStatus === "loading"}
+                >
+                  {cloudStatus === "saving" ? "保存中…" : cloudStatus === "ok" && !cloudId ? "作成中…" : "☁ クラウドに保存"}
+                </button>
+                {cloudId && (
+                  <button
+                    className={`rounded-lg px-3 py-1.5 transition ${
+                      cloudStatus === "loading"
+                        ? "bg-neutral-700 text-neutral-400 cursor-not-allowed"
+                        : "bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
+                    }`}
+                    onClick={() => cloudLoadById(cloudId)}
+                    disabled={cloudStatus === "saving" || cloudStatus === "loading"}
+                  >
+                    {cloudStatus === "loading" ? "読込中…" : "↓ 読み込む"}
+                  </button>
+                )}
+                {cloudId && (
+                  <button
+                    className={`rounded-lg px-3 py-1.5 transition ${
+                      copied ? "bg-emerald-700 text-white" : "bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
+                    }`}
+                    onClick={shareCloudUrl}
+                  >
+                    {copied ? "コピー!" : "🔗 URLをシェア"}
+                  </button>
+                )}
+              </div>
+              {cloudStatus === "error" && (
+                <p className="mt-1 text-[10px] text-red-400">通信エラーが発生しました。再試行してください。</p>
+              )}
+              {cloudStatus === "ok" && (
+                <p className="mt-1 text-[10px] text-emerald-400">完了しました。</p>
+              )}
+              {!cloudId && cloudStatus === "idle" && (
+                <p className="mt-1 text-[10px] text-neutral-500">
+                  「クラウドに保存」するとURLでどのデバイスからでも読み込めます。
+                </p>
+              )}
             </div>
 
             {/* 保存済み一覧（トグル開閉） */}
