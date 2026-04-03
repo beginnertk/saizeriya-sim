@@ -254,31 +254,27 @@ export default function Simulator({ restaurant, onBack, initialQty, initialCloud
     reader.readAsText(file);
   };
 
-  // ── クラウド保存・読み込み（jsonblob.com） ──
+  // ── クラウド保存・読み込み（GitHub Gist API） ──
+  // 匿名Gistを毎回新規作成してIDを更新する方式（更新にはauth不要）
+
+  const GIST_FILENAME = `${restaurant.id}-saves.json`;
 
   const cloudSave = async () => {
     setCloudStatus("saving");
     try {
-      const body = JSON.stringify({ saves });
-      if (cloudId) {
-        const res = await fetch(`https://jsonblob.com/api/jsonBlob/${cloudId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json", "Accept": "application/json" },
-          body,
-        });
-        if (!res.ok) throw new Error("更新失敗");
-      } else {
-        const res = await fetch("https://jsonblob.com/api/jsonBlob", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Accept": "application/json" },
-          body,
-        });
-        if (!res.ok) throw new Error("作成失敗");
-        const loc = res.headers.get("Location") ?? "";
-        const newId = loc.split("/").pop() ?? "";
-        if (!newId) throw new Error("ID取得失敗");
-        setCloudId(newId);
-      }
+      const content = JSON.stringify({ saves }, null, 2);
+      const res = await fetch("https://api.github.com/gists", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          public: false,
+          description: `外食シミュレーター プリセット (${restaurant.name})`,
+          files: { [GIST_FILENAME]: { content } },
+        }),
+      });
+      if (!res.ok) throw new Error("Gist作成失敗");
+      const data = await res.json();
+      setCloudId(data.id as string);
       setCloudStatus("ok");
       setTimeout(() => setCloudStatus("idle"), 2000);
     } catch {
@@ -290,13 +286,14 @@ export default function Simulator({ restaurant, onBack, initialQty, initialCloud
   const cloudLoadById = async (id: string) => {
     setCloudStatus("loading");
     try {
-      const res = await fetch(`https://jsonblob.com/api/jsonBlob/${id}`, {
-        headers: { "Accept": "application/json" },
-      });
+      const res = await fetch(`https://api.github.com/gists/${id}`);
       if (!res.ok) throw new Error("読み込み失敗");
       const data = await res.json();
-      const incoming: SavedCombo[] = Array.isArray(data.saves)
-        ? data.saves.filter((s: unknown) => validateSavedCombo(s))
+      const content = (data.files as Record<string, { content: string }>)?.[GIST_FILENAME]?.content;
+      if (!content) throw new Error("データなし");
+      const parsed = JSON.parse(content);
+      const incoming: SavedCombo[] = Array.isArray(parsed.saves)
+        ? parsed.saves.filter((s: unknown) => validateSavedCombo(s))
         : [];
       setSaves((prev) => {
         const existingIds = new Set(prev.map((s) => s.id));
