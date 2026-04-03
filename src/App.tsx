@@ -18,8 +18,8 @@ function parseShareHash(): { restaurantId: string; qty: Record<string, number>; 
       if (id && count) qty[id] = Math.max(0, parseInt(count, 10) || 0);
     }
   }
-  const cloudId = params.get("cloud") ?? undefined;
-  return { restaurantId: rId, qty, cloudId };
+  const savesB64 = params.get("saves") ?? undefined;
+  return { restaurantId: rId, qty, cloudId: savesB64 };
 }
 
 export default function App() {
