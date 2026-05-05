@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>モスバーガー組み合わせシミュレーター</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700;900&family=M+PLUS+1+Code:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --mos-red:#c8102e;
+    --mos-deep:#8b0a1f;
+    --mos-cream:#fdf6ec;
+    --mos-paper:#fff9ee;
+    --mos-ink:#2a1810;
+    --mos-green:#2d5e3e;
+    --mos-yellow:#f4b942;
+    --mos-line:#e8d9bf;
+    --mos-mute:#8a7560;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{font-family:'Zen Maru Gothic',sans-serif;background:var(--mos-cream);color:var(--mos-ink);overscroll-behavior:none}
+  body{padding-bottom:340px;min-height:100vh}
+
+  /* HEADER */
+  header{
+    background:var(--mos-red);
+    color:#fff;
+    padding:14px 16px 12px;
+    text-align:center;
+    border-bottom:4px solid var(--mos-deep);
+    position:relative;
+  }
+  header::after{
+    content:"";
+    position:absolute;left:0;right:0;bottom:-12px;height:12px;
+    background:repeating-linear-gradient(45deg,var(--mos-yellow) 0 8px,var(--mos-red) 8px 16px);
+  }
+  h1{font-size:18px;font-weight:900;letter-spacing:.04em}
+  .sub{font-size:11px;opacity:.85;margin-top:2px;font-weight:500}
+
+  /* BUDGET */
+  .budget-bar{
+    background:var(--mos-paper);
+    padding:14px 16px 10px;
+    margin-top:12px;
+    border-bottom:1px dashed var(--mos-line);
+  }
+  .budget-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .budget-row label{font-size:13px;font-weight:700;color:var(--mos-ink)}
+  .budget-row input{
+    border:2px solid var(--mos-ink);
+    background:#fff;
+    padding:5px 8px;
+    font-family:'M PLUS 1 Code',monospace;
+    font-size:15px;font-weight:700;
+    width:84px;text-align:right;border-radius:4px;
+    color:var(--mos-ink);
+  }
+  .budget-row .yen{font-size:13px;font-weight:700}
+  .budget-row .preset{margin-left:auto;display:flex;gap:4px}
+  .preset button{
+    border:1.5px solid var(--mos-ink);
+    background:#fff;font-family:inherit;font-size:11px;font-weight:700;
+    padding:4px 8px;border-radius:12px;cursor:pointer;
+    color:var(--mos-ink);
+  }
+  .preset button.active{background:var(--mos-ink);color:var(--mos-cream)}
+
+  .meter{
+    height:14px;background:#fff;border:1.5px solid var(--mos-ink);border-radius:8px;overflow:hidden;position:relative;
+  }
+  .meter-fill{
+    height:100%;background:linear-gradient(90deg,#4ea668,var(--mos-yellow) 80%,var(--mos-red));
+    width:0%;transition:width .3s ease;
+  }
+  .meter-text{
+    text-align:center;margin-top:6px;font-size:12px;font-weight:700;
+    font-family:'M PLUS 1 Code',monospace;
+  }
+  .meter-text.over{color:var(--mos-red)}
+
+  /* COUPON TOGGLE */
+  .coupon-row{
+    display:flex;align-items:center;gap:8px;margin-top:10px;
+    background:#fff;padding:8px 10px;border-radius:6px;
+    border:1.5px dashed var(--mos-red);
+  }
+  .coupon-row .ico{font-size:14px}
+  .coupon-row .lbl{font-size:12px;font-weight:700;flex:1}
+  .switch{position:relative;width:42px;height:22px;flex-shrink:0}
+  .switch input{display:none}
+  .slider{
+    position:absolute;inset:0;background:#ccc;border-radius:11px;cursor:pointer;transition:.2s;
+  }
+  .slider::before{
+    content:"";position:absolute;width:18px;height:18px;left:2px;top:2px;
+    background:#fff;border-radius:50%;transition:.2s;
+    box-shadow:0 1px 3px rgba(0,0,0,.3);
+  }
+  .switch input:checked + .slider{background:var(--mos-red)}
+  .switch input:checked + .slider::before{transform:translateX(20px)}
+
+  /* TABS */
+  .tabs{
+    position:sticky;top:0;z-index:10;
+    background:var(--mos-cream);
+    display:flex;overflow-x:auto;padding:8px 12px;gap:6px;
+    border-bottom:1.5px solid var(--mos-line);
+    scrollbar-width:none;
+  }
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{
+    flex-shrink:0;
+    border:1.5px solid var(--mos-ink);
+    background:#fff;
+    padding:6px 12px;border-radius:16px;
+    font-family:inherit;font-weight:700;font-size:12px;
+    cursor:pointer;color:var(--mos-ink);white-space:nowrap;
+  }
+  .tab.active{background:var(--mos-ink);color:var(--mos-cream)}
+
+  /* SECTIONS */
+  section{display:none;padding:12px 12px 24px}
+  section.active{display:block}
+  .cat-title{
+    font-weight:900;font-size:13px;color:var(--mos-deep);
+    margin:14px 4px 8px;letter-spacing:.05em;
+    border-left:4px solid var(--mos-red);padding-left:8px;
+  }
+  .cat-title:first-child{margin-top:4px}
+
+  /* ITEM */
+  .item{
+    display:flex;align-items:center;gap:10px;
+    background:#fff;border:1.5px solid var(--mos-line);
+    border-radius:8px;padding:10px 12px;margin-bottom:6px;
+    transition:.15s;
+  }
+  .item.has{border-color:var(--mos-red);background:#fff5f0;box-shadow:0 2px 0 var(--mos-red)}
+  .item-info{flex:1;min-width:0}
+  .item-name{font-size:13.5px;font-weight:700;line-height:1.3}
+  .item-price{font-family:'M PLUS 1 Code',monospace;font-size:11.5px;color:var(--mos-mute);font-weight:700;margin-top:1px}
+  .item-price s{color:#aaa;margin-right:4px}
+  .item-price .now{color:var(--mos-red)}
+  .ctrl{display:flex;align-items:center;gap:6px;flex-shrink:0}
+  .qbtn{
+    width:30px;height:30px;border-radius:50%;
+    border:1.5px solid var(--mos-ink);background:#fff;
+    font-size:16px;font-weight:900;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    color:var(--mos-ink);font-family:inherit;
+  }
+  .qbtn.plus{background:var(--mos-red);color:#fff;border-color:var(--mos-red)}
+  .qbtn:disabled{opacity:.3;cursor:not-allowed}
+  .qty{
+    min-width:22px;text-align:center;font-family:'M PLUS 1 Code',monospace;
+    font-weight:700;font-size:15px;
+  }
+
+  /* BOTTOM CART */
+  .cart{
+    position:fixed;left:0;right:0;bottom:0;
+    background:var(--mos-ink);color:var(--mos-cream);
+    border-top:4px solid var(--mos-red);
+    padding:10px 14px 14px;z-index:20;
+    box-shadow:0 -4px 20px rgba(0,0,0,.2);
+  }
+  .cart-summary{display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none}
+  .cart-icon{font-size:20px}
+  .cart-count{
+    font-size:12px;font-weight:700;
+    background:var(--mos-red);color:#fff;padding:2px 8px;border-radius:10px;
+  }
+  .cart-total{
+    margin-left:auto;font-family:'M PLUS 1 Code',monospace;
+    font-size:20px;font-weight:700;
+  }
+  .cart-total.over{color:#ffb4b4}
+  .cart-toggle{font-size:14px;opacity:.7}
+
+  .cart-detail{
+    display:block;max-height:36vh;overflow-y:auto;
+    margin-top:10px;padding-top:10px;border-top:1px dashed rgba(255,255,255,.2);
+  }
+  .cart-line{
+    display:flex;justify-content:space-between;font-size:12px;padding:4px 0;
+    border-bottom:1px dotted rgba(255,255,255,.15);
+  }
+  .cart-line:last-child{border:none}
+  .cart-line .l{flex:1;padding-right:8px}
+  .cart-line .p{font-family:'M PLUS 1 Code',monospace;font-weight:700}
+  .cart-empty{text-align:center;padding:8px;opacity:.6;font-size:12px}
+  .cart-clear{
+    margin-top:8px;width:100%;padding:8px;
+    background:transparent;border:1px solid rgba(255,255,255,.3);color:#fff;
+    border-radius:6px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🍔 モス組み合わせシミュ</h1>
+  <div class="sub">予算内で最高の組み合わせを</div>
+</header>
+
+<div class="budget-bar">
+  <div class="budget-row">
+    <label>予算</label>
+    <input type="number" id="budget" value="1000" step="50" min="0">
+    <span class="yen">円</span>
+    <div class="preset">
+      <button data-b="800">800</button>
+      <button data-b="1000" class="active">1000</button>
+      <button data-b="1500">1500</button>
+      <button data-b="2000">2000</button>
+    </div>
+  </div>
+  <div class="meter"><div class="meter-fill" id="meterFill"></div></div>
+  <div class="meter-text" id="meterText">残り 1000円</div>
+  <div class="coupon-row">
+    <span class="ico">🎫</span>
+    <span class="lbl">抹茶シェイクSをクーポン価格(330円)に</span>
+    <label class="switch">
+      <input type="checkbox" id="coupon" checked>
+      <span class="slider"></span>
+    </label>
+  </div>
+</div>
+
+<nav class="tabs" id="tabs"></nav>
+
+<main id="menu"></main>
+
+<div class="cart" id="cart">
+  <div class="cart-summary">
+    <span class="cart-icon">🛒</span>
+    <span class="cart-count" id="cartCount">0品</span>
+    <span class="cart-total" id="cartTotal">¥0</span>
+  </div>
+  <div class="cart-detail" id="cartDetail">
+    <div id="cartLines"></div>
+    <button class="cart-clear" onclick="clearCart()">🗑 全部クリア</button>
+  </div>
+</div>
+
+<script>
+const MENU = {
+  burger: {
+    label: "🍔 バーガー",
+    sections: [
+      {
+        title: "ハンバーガー類",
+        items: [
+          ["ハンバーガー", 240],
+          ["チーズバーガー", 280],
+          ["チキンバーガー", 390],
+          ["フィッシュバーガー", 400],
+          ["テリヤキバーガー", 470],
+          ["モスバーガー", 470],
+          ["モス野菜バーガー", 470],
+          ["テリヤキチキンバーガー", 480],
+          ["ロースカツバーガー", 490],
+          ["海老カツバーガー", 490],
+          ["モスチーズバーガー", 510],
+          ["スパイシーモスバーガー", 510],
+          ["スパイシーモスチーズバーガー", 550],
+          ["グリーンバーガー〈テリヤキ〉", 590],
+          ["とびきりチーズ〜北海道〜", 690],
+        ]
+      },
+      {
+        title: "ダブル",
+        items: [
+          ["ダブルハンバーガー", 400],
+          ["ダブルチーズバーガー", 440],
+          ["ダブルテリヤキバーガー", 630],
+          ["ダブルモスバーガー", 630],
+          ["ダブルモス野菜バーガー", 630],
+          ["ダブルモスチーズバーガー", 670],
+        ]
+      },
+      {
+        title: "ライス／ドッグ",
+        items: [
+          ["モスライスバーガー 海鮮かきあげ", 460],
+          ["モスライスバーガー 焼肉", 490],
+          ["ホットドッグ", 420],
+          ["チリドッグ", 450],
+          ["スパイシーチリドッグ", 490],
+        ]
+      },
+      {
+        title: "菜摘（なつみ）",
+        items: [
+          ["菜摘 チキン", 410],
+          ["菜摘 フィッシュ", 420],
+          ["菜摘 モス野菜", 490],
+          ["菜摘 テリヤキチキン", 500],
+          ["菜摘 ロースカツ", 510],
+          ["菜摘 海老カツ", 510],
+        ]
+      }
+    ]
+  },
+  side: {
+    label: "🍟 サイド",
+    sections: [
+      {
+        title: "サイドメニュー",
+        items: [
+          ["フレンチフライポテト S", 270],
+          ["フレンチフライポテト M", 330],
+          ["フレンチフライポテト L", 390],
+          ["オニポテ", 330],
+          ["オニオンフライ", 330],
+          ["モスチキン", 320],
+          ["チキンナゲット (5個)", 360],
+          ["こだわりサラダ", 330],
+          ["コーンスープ", 380],
+          ["クラムチャウダー", 380],
+        ]
+      }
+    ]
+  },
+  drink: {
+    label: "☕ ドリンク",
+    sections: [
+      {
+        title: "ホット",
+        items: [
+          ["ブレンドコーヒー", 300],
+          ["紅茶 (レモン/ミルク)", 300],
+          ["カフェラテ", 360],
+        ]
+      },
+      {
+        title: "コールド",
+        items: [
+          ["アイスコーヒー S", 260],
+          ["アイスコーヒー M", 330],
+          ["アイスコーヒー L", 400],
+          ["アイスティー S", 260],
+          ["アイスティー M", 330],
+          ["アイスティー L", 400],
+          ["オレンジブレンド100 S", 290],
+          ["オレンジブレンド100 M", 360],
+          ["ペプシコーラ S", 200],
+          ["ペプシコーラ M", 270],
+          ["ペプシコーラ L", 340],
+          ["ジンジャーエール M", 270],
+          ["メロンソーダ M", 270],
+          ["アイスウーロン茶 M", 270],
+          ["アイスカフェラテ S", 330],
+          ["りんごジュース", 100],
+        ]
+      }
+    ]
+  },
+  shake: {
+    label: "🥤 シェイク",
+    sections: [
+      {
+        title: "モスシェイク",
+        items: [
+          ["モスシェイク バニラ S", 290],
+          ["モスシェイク バニラ M", 360],
+          ["モスシェイク コーヒー S", 290],
+          ["モスシェイク コーヒー M", 360],
+          ["まぜるシェイク 出雲の抹茶 S", 350, "matcha-s"],
+          ["まぜるシェイク 出雲の抹茶 M", 430],
+        ]
+      }
+    ]
+  }
+};
+
+const COUPON_PRICE = 330;
+const cart = {};
+
+function getPrice(id, basePrice) {
+  if (id === "matcha-s" && document.getElementById("coupon").checked) {
+    return COUPON_PRICE;
+  }
+  return basePrice;
+}
+
+function getOriginal(id, basePrice) {
+  if (id === "matcha-s") return 350;
+  return basePrice;
+}
+
+function renderMenu() {
+  const tabs = document.getElementById("tabs");
+  const menu = document.getElementById("menu");
+  tabs.innerHTML = "";
+  menu.innerHTML = "";
+  let first = true;
+  Object.entries(MENU).forEach(([key, cat]) => {
+    const tab = document.createElement("button");
+    tab.className = "tab" + (first ? " active" : "");
+    tab.textContent = cat.label;
+    tab.onclick = () => {
+      document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+      tab.classList.add("active");
+      document.querySelectorAll("section").forEach(s => s.classList.remove("active"));
+      document.getElementById("sec-" + key).classList.add("active");
+      window.scrollTo({top: 0, behavior: "smooth"});
+    };
+    tabs.appendChild(tab);
+
+    const sec = document.createElement("section");
+    sec.id = "sec-" + key;
+    if (first) sec.classList.add("active");
+    cat.sections.forEach(sub => {
+      const h = document.createElement("div");
+      h.className = "cat-title";
+      h.textContent = sub.title;
+      sec.appendChild(h);
+      sub.items.forEach(([name, price, special]) => {
+        const id = special || (name + "_" + price);
+        const div = document.createElement("div");
+        div.className = "item";
+        div.dataset.id = id;
+        div.dataset.name = name;
+        div.dataset.price = price;
+        div.dataset.special = special || "";
+
+        const showPrice = getPrice(special, price);
+        let priceHtml;
+        if (special === "matcha-s" && document.getElementById("coupon")?.checked) {
+          priceHtml = `<s>¥${price}</s><span class="now">¥${showPrice}</span>`;
+        } else {
+          priceHtml = `¥${showPrice}`;
+        }
+
+        div.innerHTML = `
+          <div class="item-info">
+            <div class="item-name">${name}</div>
+            <div class="item-price">${priceHtml}</div>
+          </div>
+          <div class="ctrl">
+            <button class="qbtn minus" aria-label="減らす">−</button>
+            <span class="qty">0</span>
+            <button class="qbtn plus" aria-label="追加">＋</button>
+          </div>
+        `;
+        const qty = div.querySelector(".qty");
+        const minus = div.querySelector(".minus");
+        const plus = div.querySelector(".plus");
+        plus.onclick = () => {
+          cart[id] = (cart[id] || {name, price: getPrice(special, price), special, count: 0});
+          cart[id].count++;
+          cart[id].price = getPrice(special, price);
+          updateAll();
+        };
+        minus.onclick = () => {
+          if (!cart[id]) return;
+          cart[id].count--;
+          if (cart[id].count <= 0) delete cart[id];
+          updateAll();
+        };
+        sec.appendChild(div);
+      });
+    });
+    menu.appendChild(sec);
+    first = false;
+  });
+}
+
+function updateAll() {
+  // refresh prices on all items (in case coupon changed)
+  document.querySelectorAll(".item").forEach(div => {
+    const id = div.dataset.id;
+    const basePrice = parseInt(div.dataset.price);
+    const special = div.dataset.special;
+    const showPrice = getPrice(special, basePrice);
+    const priceEl = div.querySelector(".item-price");
+    if (special === "matcha-s" && document.getElementById("coupon").checked) {
+      priceEl.innerHTML = `<s>¥${basePrice}</s><span class="now">¥${showPrice}</span>`;
+    } else {
+      priceEl.innerHTML = `¥${showPrice}`;
+    }
+    const qty = div.querySelector(".qty");
+    const c = cart[id]?.count || 0;
+    qty.textContent = c;
+    div.classList.toggle("has", c > 0);
+    // update price in cart entry as well
+    if (cart[id]) cart[id].price = showPrice;
+  });
+
+  // total
+  let total = 0, count = 0;
+  Object.values(cart).forEach(it => {total += it.price * it.count; count += it.count});
+  const budget = parseInt(document.getElementById("budget").value) || 0;
+  const totalEl = document.getElementById("cartTotal");
+  totalEl.textContent = "¥" + total.toLocaleString();
+  totalEl.classList.toggle("over", total > budget);
+  document.getElementById("cartCount").textContent = count + "品";
+
+  // meter
+  const pct = budget > 0 ? Math.min(100, (total / budget) * 100) : 0;
+  document.getElementById("meterFill").style.width = pct + "%";
+  const remain = budget - total;
+  const txt = document.getElementById("meterText");
+  if (remain >= 0) {
+    txt.textContent = `残り ${remain.toLocaleString()}円`;
+    txt.classList.remove("over");
+  } else {
+    txt.textContent = `予算超過 ${Math.abs(remain).toLocaleString()}円`;
+    txt.classList.add("over");
+  }
+
+  // cart detail
+  const lines = document.getElementById("cartLines");
+  lines.innerHTML = "";
+  if (Object.keys(cart).length === 0) {
+    lines.innerHTML = '<div class="cart-empty">まだ何も選んでないよ</div>';
+  } else {
+    Object.values(cart).forEach(it => {
+      const d = document.createElement("div");
+      d.className = "cart-line";
+      d.innerHTML = `<span class="l">${it.name} ×${it.count}</span><span class="p">¥${(it.price * it.count).toLocaleString()}</span>`;
+      lines.appendChild(d);
+    });
+  }
+}
+
+function clearCart() {
+  Object.keys(cart).forEach(k => delete cart[k]);
+  updateAll();
+}
+
+// budget input
+document.getElementById("budget").addEventListener("input", () => {
+  document.querySelectorAll(".preset button").forEach(b => b.classList.remove("active"));
+  updateAll();
+});
+document.querySelectorAll(".preset button").forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll(".preset button").forEach(x => x.classList.remove("active"));
+    b.classList.add("active");
+    document.getElementById("budget").value = b.dataset.b;
+    updateAll();
+  };
+});
+
+// coupon toggle
+document.getElementById("coupon").addEventListener("change", updateAll);
+
+renderMenu();
+updateAll();
+</script>
+</body>
+</html>
