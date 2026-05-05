@@ -44,4 +44,5 @@ export type Restaurant = {
   setTable?: SetTableConfig; // セットカテゴリを表形式で表示する設定（任意）
   tagOrder?: string[];       // タグの表示順序（省略時は出現順）
   categoryAddons?: Record<string, string[]>; // カテゴリ別トッピングショートカット（カテゴリ名 → トッピングIDリスト）
+  iframeSrc?: string; // 独自UIを持つ店舗: このURLをiframeで表示（設定時はSimulator.tsxをスキップ）
 };

@@ -42,10 +42,37 @@ export default function App() {
 
   // 店舗が選ばれたらシミュレーター画面へ
   if (selected) {
+    const handleBack = () => { setSelected(null); setSharedQty(null); setSharedCloudId(null); };
+
+    // 独自UIを持つ店舗はiframeで表示
+    if (selected.iframeSrc) {
+      // dev: public/ はルート直下に配信される。prod: BASE_URL配下に配信される
+      const iframeSrc = import.meta.env.DEV
+        ? `/${selected.iframeSrc}`
+        : `${import.meta.env.BASE_URL}${selected.iframeSrc}`;
+      return (
+        <div className="flex flex-col h-screen">
+          <div className="flex-none bg-neutral-950 px-4 py-2">
+            <button
+              onClick={handleBack}
+              className="text-neutral-400 hover:text-neutral-100 text-sm font-bold transition"
+            >
+              ← 店舗選択に戻る
+            </button>
+          </div>
+          <iframe
+            src={iframeSrc}
+            className="flex-1 w-full border-none"
+            title={selected.name}
+          />
+        </div>
+      );
+    }
+
     return (
       <Simulator
         restaurant={selected}
-        onBack={() => { setSelected(null); setSharedQty(null); setSharedCloudId(null); }}
+        onBack={handleBack}
         initialQty={sharedQty}
         initialCloudId={sharedCloudId}
       />

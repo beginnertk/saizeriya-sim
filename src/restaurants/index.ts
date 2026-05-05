@@ -4,11 +4,12 @@
 
 import saizeriya from "./saizeriya";
 import hidakaya from "./hidakaya";
+import mos from "./mos";
 import type { Restaurant } from "../types";
 
-export const restaurants: Restaurant[] = [saizeriya, hidakaya];
+export const restaurants: Restaurant[] = [saizeriya, hidakaya, mos];
 
-export { saizeriya, hidakaya };
+export { saizeriya, hidakaya, mos };
 
 
 
