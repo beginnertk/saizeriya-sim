@@ -788,6 +788,9 @@ export default function Simulator({ restaurant, onBack, initialQty, initialCloud
                                 {it.period && (
                                   <div className="text-[10px] text-neutral-500">{it.period}</div>
                                 )}
+                                {it.expiry && (
+                                  <div className="text-[10px] text-neutral-600">{it.expiry}</div>
+                                )}
                                 {activeAddons.length > 0 ? (
                                   <div className="mt-1 text-sm font-semibold leading-snug">
                                     <span className="text-neutral-400">{yen(it.price)}</span>
