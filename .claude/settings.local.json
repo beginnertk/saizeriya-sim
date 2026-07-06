@@ -1,7 +1,33 @@
 {
   "permissions": {
     "allow": [
-      "WebFetch(domain:book.saizeriya.co.jp)"
+      "WebFetch(domain:book.saizeriya.co.jp)",
+      "Bash(npm run *)",
+      "Bash(git restore *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "WebFetch(domain:www.kfc.co.jp)",
+      "WebSearch",
+      "WebFetch(domain:www.jbc-ltd.com)",
+      "WebFetch(domain:iggy.hateblo.jp)",
+      "WebFetch(domain:prtimes.jp)",
+      "WebFetch(domain:japan.kfc.co.jp)",
+      "Bash(grep -Hm1 ^description: 'C:\\\\Users\\\\rebor\\\\OneDrive\\\\ドキュメント\\\\自己投資\\\\プログラミング\\\\シミュレーター\\\\saizeriya-sim/.claude/skills/*/SKILL.md')",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173/)",
+      "PowerShell(Start-Process -FilePath \"cmd.exe\" -ArgumentList \"/c\", \"cd `\"C:\\\\Users\\\\rebor\\\\OneDrive\\\\ドキュメント\\\\自己投資\\\\プログラミング\\\\シミュレーター\\\\saizeriya-sim`\" && npm run dev -- --port 5174\" -WindowStyle Hidden; Start-Sleep 5; try { $r = Invoke-WebRequest -Uri \"http://localhost:5174/saizeriya-sim/\" -TimeoutSec 5 -UseBasicParsing; $r.StatusCode } catch { \"not up yet: $_\" })",
+      "Bash(node *)",
+      "PowerShell(Get-Command *)",
+      "Bash(echo \"EXIT:$?\")",
+      "PowerShell(cd \"C:\\\\Users\\\\rebor\\\\OneDrive\\\\ドキュメント\\\\自己投資\\\\プログラミング\\\\シミュレーター\\\\saizeriya-sim\"; $proc = Start-Process -FilePath \"npm\" -ArgumentList \"run\",\"build\" -Wait -PassThru -NoNewWindow; Write-Host \"Exit: $\\($proc.ExitCode\\)\"; Get-ChildItem dist | Select Name,LastWriteTime)",
+      "WebFetch(domain:erikosmile.com)",
+      "WebFetch(domain:www.lmaga.jp)",
+      "WebFetch(domain:otokurashi.jp)",
+      "PowerShell(cd \"C:\\\\Users\\\\rebor\\\\OneDrive\\\\ドキュメント\\\\自己投資\\\\プログラミング\\\\シミュレーター\\\\saizeriya-sim\"; $env:FORCE_COLOR=\"0\"; cmd /c \"node node_modules\\\\.bin\\\\vite build 2>&1\"; \\(Get-ChildItem dist\\).LastWriteTime | Select-Object -First 3)",
+      "WebFetch(domain:neage.jp)",
+      "WebFetch(domain:coupon-life.com)",
+      "WebFetch(domain:tasdesign.co.jp)",
+      "WebFetch(domain:www.pricey.jp)"
     ]
   }
 }

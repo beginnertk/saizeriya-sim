@@ -4,7 +4,7 @@
 飲食チェーン店のメニュー組み合わせ・合計金額確認Webアプリ。
 - 公開URL: https://beginnertk.github.io/saizeriya-sim/
 - GitHub: https://github.com/beginnertk/saizeriya-sim
-- 対応店舗: サイゼリヤ・日高屋・モスバーガー
+- 対応店舗: サイゼリヤ・日高屋・モスバーガー・ケンタッキー
 
 ## 技術スタック
 React 18 + TypeScript + Tailwind CSS v3 + Vite 5 + GitHub Pages (GitHub Actions自動デプロイ)
@@ -19,11 +19,16 @@ src/
     ├── index.ts      # RESTAURANTS配列
     ├── saizeriya.ts
     ├── hidakaya.ts
-    └── mos.ts
-```
+    ├── mos.ts
+    └── kfc.ts
 
-ルート:
-- `mos-sim.html` — モスバーガー専用スタンドアロンUI（独自デザイン・クーポン機能付き）
+public/
+├── mos-sim.html      # モスバーガー専用スタンドアロンUI
+├── kfc-sim.html      # ケンタッキー専用スタンドアロンUI
+└── _redirects        # SPA用リダイレクト設定
+
+src/App.backup.tsx    # 不要な残留ファイル（削除予定）
+```
 
 ## 設計方針
 - データ（各.tsファイル）とUI（Simulator.tsx）を完全分離
@@ -36,6 +41,23 @@ src/
 2. Tailwind CSSでスタイリング（別CSSファイル不要）
 3. function宣言 + export default
 4. 変更時は「ファイル名＋変更内容」を先に明示
+
+## ビルド・デプロイ
+
+### ビルドコマンド
+```
+npm run build
+```
+`package.json` の build スクリプト: `shx rm -rf dist && vite build`
+
+**重要**: OneDrive フォルダ内で dist が残っているとビルドがハングする（OneDriveのファイルロック競合）。
+`shx rm -rf dist` を先に実行することで回避済み。`npm run build` だけで OK。
+
+### デプロイ
+```
+npm run deploy
+```
+GitHub Actions で自動デプロイ。push後2〜3分で反映。
 
 ## 実装済み・変更禁止の重要事項
 
@@ -110,29 +132,43 @@ src/
 - `Restaurant` 型に `iframeSrc?: string` フィールドあり
 - 設定時: App.tsx がその店舗選択時に `<iframe src={iframeSrc}>` を表示（Simulator.tsxをスキップ）
 - 上部に「← 店舗選択に戻る」バーを表示
-- モスバーガー: `iframeSrc: "./mos-sim.html"` → ルートの `mos-sim.html` を表示
-- 新店舗で独自UIが必要な場合: HTMLファイルをルートに置き + `iframeSrc` を設定するだけ
+- **iframeSrcのパス解決**（App.tsx実装）:
+  - DEVモード: `/${selected.iframeSrc}`（Viteのpublic配信ルート）
+  - prodモード: `${import.meta.env.BASE_URL}${selected.iframeSrc}`（例: `/saizeriya-sim/mos-sim.html`）
+- モスバーガー: `iframeSrc: "./mos-sim.html"` → `public/mos-sim.html`
+- ケンタッキー: `iframeSrc: "./kfc-sim.html"` → `public/kfc-sim.html`
+- 新店舗で独自UIが必要な場合: HTMLファイルをpublic/に置き + `iframeSrc` を設定するだけ
 - iframeSrc店舗はURLシェア・プリセット保存非対応（各HTMLファイルが独自実装）
 
 ### URLシェアの仕組み（2種類）
-| 用途 | URLパラメータ | 復元先 |
-|------|-------------|--------|
-| 選択メニューをシェア | `#r={id}&q={itemId:qty,...}` | `initialQty` → `qty` |
-| 全プリセットをシェア | `#r={id}&saves={base64json}` | `initialCloudId` → `pendingImport` |
+- 選択メニューをシェア: `#r={id}&q={itemId:qty,...}` → `initialQty` → `qty`
+- 全プリセットをシェア: `#r={id}&saves={base64json}` → `initialCloudId` → `pendingImport`
 - App.tsxの`parseShareHash()`でデコード → Simulatorに`initialQty`/`initialCloudId`として渡す
 - 外部サービス不使用・URL直接エンコード方式（btoa/atob）
 - URLシェアにはアドオン情報は含まれない（割り切り）
+
+### 各店舗の独自UI（スタンドアロンHTML）
+純粋なHTML/CSS/JSで実装。外部ライブラリなし。
+
+**モスバーガー** (`public/mos-sim.html`)
+- テーマ: モスレッド (#c8102e)・クリーム系背景・Zen Maru Gothic
+- クーポン機能: 抹茶シェイクSをクーポン価格に切り替えるトグル
+
+**ケンタッキー** (`public/kfc-sim.html`)
+- テーマ: KFCレッド (#da291c)・黒背景タブバー・Bebas Neue (英語見出し)
+- クーポン機能（〜6/2）: カーネルクリスピー半額・ビスケット半額・レモン旨塩チキン40円引き
+- 価格: 2026年5月7日改定後（オリジナルチキン330円・ポテトL 490円等）
 
 ## 現在のTODO（優先度順）
 1. [ ] サイゼリヤに画像追加（公式: https://www.saizeriya.co.jp/menu/）
 2. [ ] ブランドカラー導入（日高屋=赤系、サイゼリヤ=緑系）
 3. [ ] スマホ実機UI確認（セット表の横スクロール・固定バー）
-4. [x] 3店舗目の追加（モスバーガー追加済み・iframeSrc方式）
-5. [ ] `src/App.backup.tsx` を削除（不要な残留ファイル）
-6. [ ] GitHub Pages デプロイ後に `mos-sim.html` のパス（`./mos-sim.html`）が正しく解決されるか確認
+4. [ ] `src/App.backup.tsx` を削除（不要な残留ファイル）
+5. [ ] GitHub Pages デプロイ後に `mos-sim.html` / `kfc-sim.html` のパスが正しく解決されるか確認
 
 ## トラブルシューティング
 - **画面真っ白**: React hookがコンポーネント先頭以外にある → 先頭にまとめる
+- **ビルドがハングする**: `dist` フォルダがOneDriveにロックされている → `npm run build` に `shx rm -rf dist &&` を先付けして解決済み（package.json修正済み）
 - **ビルドエラー**: types.tsとの型整合性を確認 → `npm run build` で事前確認
 - **公開反映されない**: GitHub Actions確認・push後2-3分待つ
 - **ローカル起動しない**: `npm install` で依存関係再インストール

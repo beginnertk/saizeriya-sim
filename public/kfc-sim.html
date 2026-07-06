@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>ケンタッキー組み合わせシミュレーター</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Noto+Sans+JP:wght@400;700;900&family=M+PLUS+1+Code:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --kfc-red:#da291c;
+    --kfc-deep:#a01f14;
+    --kfc-black:#1a0a08;
+    --kfc-cream:#fdf4ef;
+    --kfc-paper:#fff8f5;
+    --kfc-line:#f0d8cc;
+    --kfc-mute:#8a5a4a;
+    --kfc-white:#ffffff;
+    --kfc-gold:#e8a020;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{
+    font-family:'Noto Sans JP',sans-serif;
+    background:var(--kfc-cream);
+    color:var(--kfc-black);
+    overscroll-behavior:none;
+  }
+  body{padding-bottom:320px;min-height:100vh}
+
+  /* HEADER */
+  header{
+    background:var(--kfc-red);
+    color:#fff;
+    padding:16px 16px 14px;
+    text-align:center;
+    position:relative;
+    overflow:hidden;
+  }
+  header::before{
+    content:"";
+    position:absolute;inset:0;
+    background:repeating-linear-gradient(-45deg,transparent 0 12px,rgba(0,0,0,.08) 12px 16px);
+    pointer-events:none;
+  }
+  header::after{
+    content:"";
+    position:absolute;left:0;right:0;bottom:0;height:5px;
+    background:repeating-linear-gradient(90deg,var(--kfc-black) 0 10px,var(--kfc-white) 10px 20px);
+  }
+  .header-inner{position:relative;z-index:1;padding-bottom:6px}
+  h1{
+    font-family:'Bebas Neue',impact,sans-serif;
+    font-size:28px;letter-spacing:.12em;
+    text-shadow:2px 2px 0 var(--kfc-deep);
+    line-height:1;
+  }
+  .sub{font-size:11px;opacity:.9;margin-top:4px;font-weight:700;letter-spacing:.05em}
+
+  /* BUDGET */
+  .budget-bar{
+    background:var(--kfc-paper);
+    padding:14px 16px 10px;
+    margin-top:6px;
+    border-bottom:2px solid var(--kfc-line);
+  }
+  .budget-row{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+  .budget-row label{font-size:12px;font-weight:900;color:var(--kfc-black);letter-spacing:.06em;text-transform:uppercase}
+  .budget-row input{
+    border:2.5px solid var(--kfc-black);background:#fff;
+    padding:5px 8px;
+    font-family:'M PLUS 1 Code',monospace;font-size:15px;font-weight:700;
+    width:90px;text-align:right;border-radius:4px;color:var(--kfc-black);
+  }
+  .budget-row .yen{font-size:13px;font-weight:700}
+  .budget-row .preset{margin-left:auto;display:flex;gap:4px}
+  .preset button{
+    border:2px solid var(--kfc-black);background:#fff;
+    font-family:inherit;font-size:11px;font-weight:900;
+    padding:4px 8px;border-radius:3px;cursor:pointer;color:var(--kfc-black);
+  }
+  .preset button.active{background:var(--kfc-red);color:#fff;border-color:var(--kfc-red)}
+  .meter{height:16px;background:#fff;border:2px solid var(--kfc-black);border-radius:3px;overflow:hidden}
+  .meter-fill{height:100%;background:linear-gradient(90deg,#e8a020,var(--kfc-red) 75%,var(--kfc-deep));width:0%;transition:width .3s ease}
+  .meter-text{text-align:center;margin-top:6px;font-size:12px;font-weight:900;font-family:'M PLUS 1 Code',monospace;letter-spacing:.04em}
+  .meter-text.over{color:var(--kfc-red)}
+
+  /* COUPON SECTION */
+  .coupon-section{
+    background:var(--kfc-paper);
+    padding:10px 16px;
+    border-bottom:2px solid var(--kfc-line);
+  }
+  .coupon-header{
+    display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none;
+    font-size:12px;font-weight:900;letter-spacing:.04em;margin-bottom:0;
+  }
+  .coupon-header .ico{font-size:14px}
+  .coupon-header .arrow{margin-left:auto;font-size:12px;opacity:.6}
+  .coupon-list{display:none;margin-top:8px;display:flex;flex-direction:column;gap:6px}
+  .coupon-row{
+    display:flex;align-items:center;gap:8px;
+    background:#fff;padding:8px 10px;border-radius:4px;
+    border:1.5px dashed var(--kfc-red);
+  }
+  .coupon-lbl{font-size:12px;font-weight:700;flex:1;line-height:1.3}
+  .coupon-meta{font-size:10px;color:var(--kfc-mute);font-weight:700;white-space:nowrap}
+  .switch{position:relative;width:42px;height:22px;flex-shrink:0}
+  .switch input{display:none}
+  .slider{position:absolute;inset:0;background:#ccc;border-radius:11px;cursor:pointer;transition:.2s}
+  .slider::before{content:"";position:absolute;width:18px;height:18px;left:2px;top:2px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+  .switch input:checked + .slider{background:var(--kfc-red)}
+  .switch input:checked + .slider::before{transform:translateX(20px)}
+
+  /* TABS */
+  .tabs{
+    position:sticky;top:0;z-index:10;
+    background:var(--kfc-black);
+    display:flex;overflow-x:auto;padding:8px 10px;gap:6px;
+    border-bottom:3px solid var(--kfc-red);
+    scrollbar-width:none;
+  }
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{
+    flex-shrink:0;border:2px solid rgba(255,255,255,.25);background:transparent;
+    padding:7px 14px;border-radius:3px;
+    font-family:'Noto Sans JP',sans-serif;font-weight:900;font-size:12px;letter-spacing:.04em;
+    cursor:pointer;color:rgba(255,255,255,.7);white-space:nowrap;transition:.15s;
+  }
+  .tab.active{background:var(--kfc-red);color:#fff;border-color:var(--kfc-red)}
+
+  /* SECTIONS */
+  section{display:none;padding:10px 12px 24px}
+  section.active{display:block}
+  .cat-title{
+    font-weight:900;font-size:12px;color:var(--kfc-white);
+    background:var(--kfc-black);
+    margin:14px 0 8px;padding:6px 10px;
+    letter-spacing:.08em;text-transform:uppercase;
+    border-left:4px solid var(--kfc-red);
+    border-radius:0 3px 3px 0;
+  }
+  .cat-title:first-child{margin-top:4px}
+  .cat-title.gold{background:var(--kfc-gold);color:var(--kfc-black);border-left-color:var(--kfc-black)}
+
+  /* BADGES */
+  .badge-limited{
+    display:inline-block;background:var(--kfc-red);color:#fff;
+    font-size:9px;font-weight:900;padding:2px 5px;border-radius:2px;
+    letter-spacing:.04em;margin-left:6px;vertical-align:middle;
+  }
+  .badge-new{
+    display:inline-block;background:var(--kfc-gold);color:var(--kfc-black);
+    font-size:9px;font-weight:900;padding:2px 5px;border-radius:2px;
+    letter-spacing:.04em;margin-left:4px;vertical-align:middle;
+  }
+  .badge-lunch{
+    display:inline-block;background:#2d7a3e;color:#fff;
+    font-size:9px;font-weight:900;padding:2px 5px;border-radius:2px;
+    letter-spacing:.04em;margin-left:4px;vertical-align:middle;
+  }
+
+  /* ITEM */
+  .item{
+    display:flex;align-items:center;gap:10px;
+    background:#fff;border:2px solid var(--kfc-line);
+    border-radius:4px;padding:10px 12px;margin-bottom:6px;
+    transition:.15s;
+  }
+  .item.has{
+    border-color:var(--kfc-red);
+    background:linear-gradient(135deg,#fff5f4 0%,#fff 100%);
+    box-shadow:0 2px 0 var(--kfc-red);
+  }
+  .item.pack{border-left:4px solid var(--kfc-gold);background:linear-gradient(135deg,#fffbf0 0%,#fff 100%)}
+  .item.pack.has{border-color:var(--kfc-red);border-left-color:var(--kfc-red)}
+  .item-info{flex:1;min-width:0}
+  .item-name{font-size:13.5px;font-weight:700;line-height:1.3}
+  .item-price{font-family:'M PLUS 1 Code',monospace;font-size:12px;color:var(--kfc-mute);font-weight:700;margin-top:2px}
+  .item-price s{color:#bbb;margin-right:4px}
+  .item-price .now{color:var(--kfc-red);font-weight:900}
+  .ctrl{display:flex;align-items:center;gap:6px;flex-shrink:0}
+  .qbtn{
+    width:32px;height:32px;border-radius:3px;
+    border:2px solid var(--kfc-black);background:#fff;
+    font-size:18px;font-weight:900;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    color:var(--kfc-black);font-family:inherit;line-height:1;transition:.1s;
+  }
+  .qbtn.plus{background:var(--kfc-red);color:#fff;border-color:var(--kfc-red)}
+  .qbtn:disabled{opacity:.25;cursor:not-allowed}
+  .qty{min-width:24px;text-align:center;font-family:'M PLUS 1 Code',monospace;font-weight:700;font-size:16px}
+
+  /* CART */
+  .cart{
+    position:fixed;left:0;right:0;bottom:0;
+    background:var(--kfc-black);color:#fff;
+    border-top:4px solid var(--kfc-red);
+    padding:10px 14px 16px;z-index:20;
+    box-shadow:0 -6px 24px rgba(0,0,0,.3);
+  }
+  .cart-summary{display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none}
+  .cart-icon{font-size:22px}
+  .cart-count{font-size:12px;font-weight:900;letter-spacing:.04em;background:var(--kfc-red);color:#fff;padding:3px 8px;border-radius:2px}
+  .cart-total{margin-left:auto;font-family:'Bebas Neue',impact,sans-serif;font-size:26px;letter-spacing:.06em;line-height:1}
+  .cart-total.over{color:#ff9494}
+  .cart-toggle{font-size:14px;opacity:.6}
+  .cart-detail{display:block;max-height:34vh;overflow-y:auto;margin-top:10px;padding-top:10px;border-top:1px dashed rgba(255,255,255,.2)}
+  .cart-line{display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px dotted rgba(255,255,255,.12)}
+  .cart-line:last-child{border:none}
+  .cart-line .l{flex:1;padding-right:8px;font-weight:700}
+  .cart-line .p{font-family:'M PLUS 1 Code',monospace;font-weight:700;color:#ffcfc8}
+  .cart-empty{text-align:center;padding:10px;opacity:.5;font-size:12px}
+  .cart-clear{margin-top:8px;width:100%;padding:8px;background:transparent;border:1px solid rgba(255,255,255,.25);color:rgba(255,255,255,.7);border-radius:3px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <h1>🍗 KFC シミュレーター</h1>
+    <div class="sub">予算内でベストな組み合わせを見つけよう</div>
+  </div>
+</header>
+
+<div class="budget-bar">
+  <div class="budget-row">
+    <label>BUDGET</label>
+    <input type="number" id="budget" value="1500" step="100" min="0">
+    <span class="yen">円</span>
+    <div class="preset">
+      <button data-b="1000">1000</button>
+      <button data-b="1500" class="active">1500</button>
+      <button data-b="2000">2000</button>
+      <button data-b="3000">3000</button>
+    </div>
+  </div>
+  <div class="meter"><div class="meter-fill" id="meterFill"></div></div>
+  <div class="meter-text" id="meterText">残り 1500円</div>
+</div>
+
+<!-- COUPONS -->
+<div class="coupon-section">
+  <div class="coupon-header" onclick="toggleCoupons()">
+    <span class="ico">🎫</span>
+    <span>クーポン・キャンペーン（〜6/2）</span>
+    <span class="arrow" id="couponArrow">▼</span>
+  </div>
+  <div class="coupon-list" id="couponList" style="display:none">
+    <div class="coupon-row">
+      <span class="coupon-lbl">カーネルクリスピー半額キャンペーン<br><small style="color:#888">290円 → 145円</small></span>
+      <span class="coupon-meta">〜6/2</span>
+      <label class="switch">
+        <input type="checkbox" id="coup_crispy" onchange="updateAll()">
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="coupon-row">
+      <span class="coupon-lbl">ビスケット半額 No.932<br><small style="color:#888">290円 → 140円</small></span>
+      <span class="coupon-meta">〜6/2</span>
+      <label class="switch">
+        <input type="checkbox" id="coup_biscuit" onchange="updateAll()">
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="coupon-row">
+      <span class="coupon-lbl">レモン香る旨塩チキン 40円引き No.957<br><small style="color:#888">340円 → 300円</small></span>
+      <span class="coupon-meta">〜6/2</span>
+      <label class="switch">
+        <input type="checkbox" id="coup_paripari" onchange="updateAll()">
+        <span class="slider"></span>
+      </label>
+    </div>
+  </div>
+</div>
+
+<nav class="tabs" id="tabs"></nav>
+<main id="menu"></main>
+
+<div class="cart" id="cart">
+  <div class="cart-summary" onclick="toggleDetail()">
+    <span class="cart-icon">🪣</span>
+    <span class="cart-count" id="cartCount">0品</span>
+    <span class="cart-total" id="cartTotal">¥0</span>
+    <span class="cart-toggle" id="cartToggle">▲</span>
+  </div>
+  <div class="cart-detail" id="cartDetail">
+    <div id="cartLines"></div>
+    <button class="cart-clear" onclick="clearCart()">🗑 全部クリア</button>
+  </div>
+</div>
+
+<script>
+// ──────────────────────────────────────────────
+// MENU DATA
+// 価格: 2026年5月7日改定後（税込）
+// ──────────────────────────────────────────────
+const MENU = {
+  burger: {
+    label: "🍔 バーガー",
+    sections: [
+      {
+        title: "BURGERS — 定番（価格据え置き）",
+        items: [
+          {id:"kfc_b_fillet",     name:"チキンフィレバーガー",              price:440},
+          {id:"kfc_b_wafuu",      name:"和風チキンカツバーガー",             price:440},
+          {id:"kfc_b_spicy",      name:"辛口チキンフィレバーガー",           price:470},
+          {id:"kfc_b_cheese",     name:"チーズチキンフィレバーガー",         price:470},
+          {id:"kfc_b_double",     name:"ダブルチキンフィレバーガー",         price:680},
+        ]
+      },
+      {
+        title: "BURGERS — 期間限定 THE AMERICAN BURGERS",
+        items: [
+          {id:"kfc_b_onion",      name:"NEW YORK style オニオンリングフィレバーガー",         price:580, limited:true},
+          {id:"kfc_b_avocado",    name:"TEXAS style スパイシーアボカドフィレバーガー",        price:580, limited:true},
+          {id:"kfc_b_doubledown", name:"LAS VEGAS style ダブルダウンフィレバーガー",          price:790, limited:true},
+        ]
+      },
+      {
+        title: "LUNCH — ケンタランチ550コンビ（10:00〜15:00）",
+        items: [
+          {id:"kfc_lunch_fillet",  name:"チキンフィレバーガー＋ビスケット",  price:550, lunch:true},
+          {id:"kfc_lunch_wafuu",   name:"和風チキンカツバーガー＋ビスケット", price:550, lunch:true},
+        ]
+      }
+    ]
+  },
+  chicken: {
+    label: "🍗 チキン",
+    sections: [
+      {
+        title: "CHICKEN — 定番",
+        items: [
+          {id:"kfc_c_original",   name:"オリジナルチキン",          price:330},
+          {id:"kfc_c_boneless",   name:"骨なしケンタッキー",         price:330},
+          {id:"kfc_c_crispy",     name:"カーネルクリスピー",         price:290, couponId:"coup_crispy",   couponPrice:145},
+          {id:"kfc_c_nugget5",    name:"ナゲット 5ピース",           price:480},
+        ]
+      },
+      {
+        title: "CHICKEN — 期間限定",
+        items: [
+          {id:"kfc_c_paripari",   name:"レモン香るパリパリ旨塩チキン", price:340, limited:true, couponId:"coup_paripari", couponPrice:300},
+        ]
+      },
+      {
+        title: "BUCKET — トクトクパック",
+        isPack: true,
+        items: [
+          {id:"kfc_p_4",   name:"トクトクパック 4ピース",   price:1540, pack:true},
+          {id:"kfc_p_6",   name:"トクトクパック 6ピース",   price:2390, pack:true},
+          {id:"kfc_p_8",   name:"トクトクパック 8ピース",   price:2940, pack:true},
+          {id:"kfc_p_10",  name:"10ピースバーレル",         price:3100, pack:true},
+        ]
+      },
+      {
+        title: "BUCKET — 食べくらべパック（旨塩チキン入り）",
+        isPack: true,
+        items: [
+          {id:"kfc_p_mix4",  name:"食べくらべ 4ピースパック",        price:1540, pack:true, limited:true},
+          {id:"kfc_p_mix6",  name:"食べくらべ 6ピースパック",        price:2290, pack:true, limited:true},
+          {id:"kfc_p_mix10", name:"パリパリ旨塩おためしバーレル",     price:2980, pack:true, limited:true},
+        ]
+      }
+    ]
+  },
+  twister: {
+    label: "🌯 ツイスター",
+    sections: [
+      {
+        title: "TWISTER",
+        items: [
+          {id:"kfc_t_pepper",   name:"ペッパーマヨツイスター",  price:380},
+          {id:"kfc_t_teriyaki", name:"てりやきツイスター",      price:380},
+        ]
+      }
+    ]
+  },
+  side: {
+    label: "🍟 サイド",
+    sections: [
+      {
+        title: "POTATOES",
+        items: [
+          {id:"kfc_s_potato_s",   name:"ポテト (S)",    price:290},
+          {id:"kfc_s_potato_l",   name:"ポテト (L)",    price:490},
+          {id:"kfc_s_potato_box", name:"ポテト (BOX)",  price:990, pack:true},
+        ]
+      },
+      {
+        title: "SIDES",
+        items: [
+          {id:"kfc_s_coleslaw_s", name:"コールスロー (S)",  price:290},
+          {id:"kfc_s_coleslaw_m", name:"コールスロー (M)",  price:390},
+          {id:"kfc_s_biscuit",    name:"ビスケット",        price:290, couponId:"coup_biscuit", couponPrice:140},
+          {id:"kfc_s_chocopie",   name:"チョコパイ",        price:290},
+        ]
+      }
+    ]
+  },
+  drink: {
+    label: "☕ ドリンク",
+    sections: [
+      {
+        title: "DRINKS",
+        items: [
+          {id:"kfc_d_s",      name:"ドリンク (S)",  price:270},
+          {id:"kfc_d_m",      name:"ドリンク (M)",  price:290},
+          {id:"kfc_d_l",      name:"ドリンク (L)",  price:340},
+          {id:"kfc_d_coffee", name:"コーヒー",      price:290},
+        ]
+      }
+    ]
+  }
+};
+
+// ──────────────────────────────────────────────
+// STATE
+// ──────────────────────────────────────────────
+const cart = {};
+let detailOpen = true;
+
+function getCouponPrice(item) {
+  if (!item.couponId) return item.price;
+  const el = document.getElementById(item.couponId);
+  return (el && el.checked) ? item.couponPrice : item.price;
+}
+
+function renderMenu() {
+  const tabsEl = document.getElementById("tabs");
+  const menuEl = document.getElementById("menu");
+  tabsEl.innerHTML = "";
+  menuEl.innerHTML = "";
+  let first = true;
+
+  Object.entries(MENU).forEach(([key, cat]) => {
+    const tab = document.createElement("button");
+    tab.className = "tab" + (first ? " active" : "");
+    tab.textContent = cat.label;
+    tab.onclick = () => {
+      document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+      tab.classList.add("active");
+      document.querySelectorAll("section").forEach(s => s.classList.remove("active"));
+      document.getElementById("sec-" + key).classList.add("active");
+      window.scrollTo({top:0, behavior:"smooth"});
+    };
+    tabsEl.appendChild(tab);
+
+    const sec = document.createElement("section");
+    sec.id = "sec-" + key;
+    if (first) sec.classList.add("active");
+
+    cat.sections.forEach(sub => {
+      const h = document.createElement("div");
+      h.className = "cat-title" + (sub.isPack ? " gold" : "");
+      h.textContent = sub.title;
+      sec.appendChild(h);
+
+      sub.items.forEach(it => {
+        const div = document.createElement("div");
+        div.className = "item" + (it.pack ? " pack" : "");
+        div.dataset.id = it.id;
+
+        let namePart = it.name;
+        if (it.limited) namePart += '<span class="badge-limited">期間限定</span>';
+        if (it.lunch)   namePart += '<span class="badge-lunch">ランチ限定</span>';
+        if (it.couponId) namePart += '<span class="badge-new">クーポンあり</span>';
+
+        div.innerHTML = `
+          <div class="item-info">
+            <div class="item-name">${namePart}</div>
+            <div class="item-price" id="price-${it.id}">¥${it.price.toLocaleString()}</div>
+          </div>
+          <div class="ctrl">
+            <button class="qbtn minus" aria-label="減らす">−</button>
+            <span class="qty">0</span>
+            <button class="qbtn plus" aria-label="追加">＋</button>
+          </div>
+        `;
+
+        div.querySelector(".plus").onclick = () => {
+          const effectivePrice = getCouponPrice(it);
+          if (!cart[it.id]) cart[it.id] = {name: it.name, basePrice: it.price, price: effectivePrice, count: 0, item: it};
+          cart[it.id].count++;
+          cart[it.id].price = effectivePrice;
+          updateAll();
+        };
+        div.querySelector(".minus").onclick = () => {
+          if (!cart[it.id]) return;
+          cart[it.id].count--;
+          if (cart[it.id].count <= 0) delete cart[it.id];
+          updateAll();
+        };
+
+        sec.appendChild(div);
+      });
+    });
+
+    menuEl.appendChild(sec);
+    first = false;
+  });
+}
+
+function updateAll() {
+  // refresh prices (coupons may toggle)
+  Object.entries(MENU).forEach(([, cat]) => {
+    cat.sections.forEach(sub => {
+      sub.items.forEach(it => {
+        const effectivePrice = getCouponPrice(it);
+        const priceEl = document.getElementById("price-" + it.id);
+        if (!priceEl) return;
+
+        if (it.couponId && getCouponPrice(it) < it.price) {
+          priceEl.innerHTML = `<s>¥${it.price.toLocaleString()}</s> <span class="now">¥${effectivePrice.toLocaleString()}</span>`;
+        } else {
+          priceEl.innerHTML = `¥${it.price.toLocaleString()}`;
+        }
+
+        if (cart[it.id]) cart[it.id].price = effectivePrice;
+      });
+    });
+  });
+
+  // update qty display
+  document.querySelectorAll(".item").forEach(div => {
+    const id = div.dataset.id;
+    const c = cart[id]?.count || 0;
+    div.querySelector(".qty").textContent = c;
+    div.classList.toggle("has", c > 0);
+  });
+
+  // total
+  let total = 0, count = 0;
+  Object.values(cart).forEach(it => { total += it.price * it.count; count += it.count; });
+
+  const budget = parseInt(document.getElementById("budget").value) || 0;
+  const totalEl = document.getElementById("cartTotal");
+  totalEl.textContent = "¥" + total.toLocaleString();
+  totalEl.classList.toggle("over", total > budget);
+  document.getElementById("cartCount").textContent = count + "品";
+
+  const pct = budget > 0 ? Math.min(100, (total / budget) * 100) : 0;
+  document.getElementById("meterFill").style.width = pct + "%";
+  const remain = budget - total;
+  const txt = document.getElementById("meterText");
+  txt.textContent = remain >= 0 ? `残り ${remain.toLocaleString()}円` : `予算超過 ${Math.abs(remain).toLocaleString()}円`;
+  txt.classList.toggle("over", remain < 0);
+
+  // cart detail
+  const lines = document.getElementById("cartLines");
+  lines.innerHTML = "";
+  if (Object.keys(cart).length === 0) {
+    lines.innerHTML = '<div class="cart-empty">まだ何も選んでないよ 🍗</div>';
+  } else {
+    Object.values(cart).forEach(it => {
+      const d = document.createElement("div");
+      d.className = "cart-line";
+      d.innerHTML = `<span class="l">${it.name} ×${it.count}</span><span class="p">¥${(it.price * it.count).toLocaleString()}</span>`;
+      lines.appendChild(d);
+    });
+  }
+}
+
+function clearCart() {
+  Object.keys(cart).forEach(k => delete cart[k]);
+  updateAll();
+}
+
+function toggleDetail() {
+  detailOpen = !detailOpen;
+  document.getElementById("cartDetail").style.display = detailOpen ? "block" : "none";
+  document.getElementById("cartToggle").textContent = detailOpen ? "▲" : "▼";
+}
+
+function toggleCoupons() {
+  const list = document.getElementById("couponList");
+  const arrow = document.getElementById("couponArrow");
+  const isOpen = list.style.display !== "none";
+  list.style.display = isOpen ? "none" : "flex";
+  arrow.textContent = isOpen ? "▼" : "▲";
+}
+
+// budget
+document.getElementById("budget").addEventListener("input", () => {
+  document.querySelectorAll(".preset button").forEach(b => b.classList.remove("active"));
+  updateAll();
+});
+document.querySelectorAll(".preset button").forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll(".preset button").forEach(x => x.classList.remove("active"));
+    b.classList.add("active");
+    document.getElementById("budget").value = b.dataset.b;
+    updateAll();
+  };
+});
+
+renderMenu();
+updateAll();
+</script>
+</body>
+</html>
