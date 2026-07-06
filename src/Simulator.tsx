@@ -785,6 +785,9 @@ export default function Simulator({ restaurant, onBack, initialQty, initialCloud
                               )}
                               <div className="p-3">
                                 <div className="font-medium text-sm leading-snug">{it.name}</div>
+                                {it.period && (
+                                  <div className="text-[10px] text-neutral-500">{it.period}</div>
+                                )}
                                 {activeAddons.length > 0 ? (
                                   <div className="mt-1 text-sm font-semibold leading-snug">
                                     <span className="text-neutral-400">{yen(it.price)}</span>

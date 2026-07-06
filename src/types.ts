@@ -11,6 +11,7 @@ export type Item = {
   tags?: string[];
   image?: string;    // メニュー画像のURL（任意）
   setCell?: [string, string]; // セットテーブルの配置 [列タグ, 行タグ]（任意）
+  period?: string;   // 販売期間（季節限定品等）カードに小さく表示（任意）
 };
 
 export type Targets = {
