@@ -14,6 +14,12 @@ const yen = (n: number) =>
 
 const sum = (arr: number[]) => arr.reduce((a, b) => a + b, 0);
 
+function hexToRgb(hex: string): [number, number, number] {
+  const h = hex.replace("#", "");
+  const n = parseInt(h, 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
 function computeTotals(
   items: Item[],
   qty: Record<string, number>,
@@ -318,8 +324,22 @@ export default function Simulator({ restaurant, onBack, initialQty, initialCloud
   // UI
   // ============================================================
 
+  const accentBase = restaurant.accentColor ?? "#059669"; // 未指定時はエメラルドグリーン(emerald-600)
+  const [accR, accG, accB] = hexToRgb(accentBase);
+  const accentVars = {
+    "--accent": accentBase,
+    "--accent-10": `rgba(${accR},${accG},${accB},0.10)`,
+    "--accent-15": `rgba(${accR},${accG},${accB},0.15)`,
+    "--accent-20": `rgba(${accR},${accG},${accB},0.20)`,
+    "--accent-40": `rgba(${accR},${accG},${accB},0.40)`,
+    "--accent-50": `rgba(${accR},${accG},${accB},0.50)`,
+    "--accent-60": `rgba(${accR},${accG},${accB},0.60)`,
+    "--accent-hover": `rgb(${Math.max(accR - 20, 0)},${Math.max(accG - 20, 0)},${Math.max(accB - 20, 0)})`,
+    "--accent-light": `rgb(${Math.min(accR + 70, 255)},${Math.min(accG + 70, 255)},${Math.min(accB + 70, 255)})`,
+  } as React.CSSProperties;
+
   return (
-    <div className="min-h-screen w-full bg-neutral-950 text-neutral-100 pb-24">
+    <div className="min-h-screen w-full bg-neutral-950 text-neutral-100 pb-24" style={accentVars}>
       <div className="mx-auto max-w-6xl px-4 py-6">
 
         {/* プリセットインポート確認バナー */}
@@ -388,7 +408,7 @@ export default function Simulator({ restaurant, onBack, initialQty, initialCloud
             <div
               className={`mt-3 rounded-xl border px-3 py-2 text-sm ${
                 budgetOk
-                  ? "border-emerald-800 bg-emerald-950/40 text-emerald-300"
+                  ? "border-[var(--accent-50)] bg-[var(--accent-10)] text-[var(--accent-light)]"
                   : "border-red-800 bg-red-950/40 text-red-300"
               }`}
             >
@@ -413,7 +433,7 @@ export default function Simulator({ restaurant, onBack, initialQty, initialCloud
               <button
                 className={`rounded-lg px-3 py-1.5 transition ${
                   copied
-                    ? "bg-emerald-700 text-white"
+                    ? "bg-[var(--accent)] text-white"
                     : "bg-neutral-800 hover:bg-neutral-700"
                 }`}
                 onClick={shareUrl}
@@ -463,7 +483,7 @@ export default function Simulator({ restaurant, onBack, initialQty, initialCloud
                   key={t}
                   className={`rounded px-2 py-0.5 text-[11px] transition ${
                     activeTag === t
-                      ? "bg-emerald-700 text-white"
+                      ? "bg-[var(--accent)] text-white"
                       : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700"
                   }`}
                   onClick={() => setActiveTag(t === activeTag ? null : t)}
@@ -478,7 +498,7 @@ export default function Simulator({ restaurant, onBack, initialQty, initialCloud
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-neutral-400">タグ絞り込み:</span>
                   <button
-                    className="flex items-center gap-1 rounded-full bg-emerald-700 px-2.5 py-1 text-xs text-white hover:bg-emerald-600 transition"
+                    className="flex items-center gap-1 rounded-full bg-[var(--accent)] px-2.5 py-1 text-xs text-white hover:bg-[var(--accent-hover)] transition"
                     onClick={() => setActiveTag(null)}
                   >
                     #{activeTag} ✕
@@ -493,7 +513,7 @@ export default function Simulator({ restaurant, onBack, initialQty, initialCloud
                           key={cat}
                           className={`rounded px-2 py-0.5 text-[10px] transition ${
                             activeCategory === cat
-                              ? "bg-emerald-700 text-white"
+                              ? "bg-[var(--accent)] text-white"
                               : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700"
                           }`}
                           onClick={() => setActiveCategory(cat)}
@@ -524,7 +544,7 @@ export default function Simulator({ restaurant, onBack, initialQty, initialCloud
                 onChange={(e) => setSaveName(e.target.value)}
               />
               <button
-                className="shrink-0 rounded-xl bg-emerald-700 px-3 py-2 text-sm hover:bg-emerald-600 transition"
+                className="shrink-0 rounded-xl bg-[var(--accent)] px-3 py-2 text-sm hover:bg-[var(--accent-hover)] transition"
                 onClick={saveCurrent}
               >
                 保存
@@ -537,7 +557,7 @@ export default function Simulator({ restaurant, onBack, initialQty, initialCloud
                 saves.length === 0
                   ? "bg-neutral-800 text-neutral-600 cursor-not-allowed"
                   : copied
-                  ? "bg-emerald-700 text-white"
+                  ? "bg-[var(--accent)] text-white"
                   : "bg-sky-800 hover:bg-sky-700 text-white"
               }`}
               onClick={exportSavesToUrl}
@@ -676,7 +696,7 @@ export default function Simulator({ restaurant, onBack, initialQty, initialCloud
                   key={cat}
                   className={`relative shrink-0 rounded-lg px-4 py-2 text-sm font-medium transition ${
                     activeCategory === cat
-                      ? "bg-emerald-700 text-white"
+                      ? "bg-[var(--accent)] text-white"
                       : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
                   } ${dimmed ? "opacity-40" : ""}`}
                   onClick={() => setActiveCategory(cat)}
@@ -766,7 +786,7 @@ export default function Simulator({ restaurant, onBack, initialQty, initialCloud
                               key={it.id}
                               className={`rounded-2xl border overflow-hidden transition cursor-pointer ${
                                 isOn
-                                  ? "border-emerald-500/60 bg-emerald-950/20"
+                                  ? "border-[var(--accent-60)] bg-[var(--accent-15)]"
                                   : isOver
                                   ? "border-red-500/50 bg-red-950/20 hover:border-red-400"
                                   : "border-neutral-500/50 bg-neutral-800/50 hover:border-neutral-400"
@@ -797,10 +817,10 @@ export default function Simulator({ restaurant, onBack, initialQty, initialCloud
                                     {activeAddons.map((a) => (
                                       <span key={a.id} className="text-amber-400"> +{yen(a.price)}</span>
                                     ))}
-                                    <span className={isOn ? "text-emerald-400" : "text-neutral-200"}> ={yen(it.price + activeAddons.reduce((s, a) => s + a.price, 0))}</span>
+                                    <span className={isOn ? "text-[var(--accent-light)]" : "text-neutral-200"}> ={yen(it.price + activeAddons.reduce((s, a) => s + a.price, 0))}</span>
                                   </div>
                                 ) : (
-                                  <div className={`mt-1 text-sm font-semibold ${isOn ? "text-emerald-400" : isOver ? "text-red-400" : "text-neutral-200"}`}>{yen(it.price)}</div>
+                                  <div className={`mt-1 text-sm font-semibold ${isOn ? "text-[var(--accent-light)]" : isOver ? "text-red-400" : "text-neutral-200"}`}>{yen(it.price)}</div>
                                 )}
                                 {it.tags && it.tags.length > 0 && (
                                   <div
@@ -812,7 +832,7 @@ export default function Simulator({ restaurant, onBack, initialQty, initialCloud
                                         key={t}
                                         className={`rounded px-1.5 py-0.5 text-[10px] transition ${
                                           activeTag === t
-                                            ? "bg-emerald-700 text-white"
+                                            ? "bg-[var(--accent)] text-white"
                                             : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700"
                                         }`}
                                         onClick={() => setActiveTag(t === activeTag ? null : t)}
@@ -942,7 +962,7 @@ export default function Simulator({ restaurant, onBack, initialQty, initialCloud
                               key={t}
                               className={`rounded px-1.5 py-0.5 text-[10px] transition shrink-0 ${
                                 activeTag === t
-                                  ? "bg-emerald-700 text-white"
+                                  ? "bg-[var(--accent)] text-white"
                                   : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700"
                               }`}
                               onClick={(e) => { e.stopPropagation(); setActiveTag(t === activeTag ? null : t); }}
@@ -1003,7 +1023,7 @@ export default function Simulator({ restaurant, onBack, initialQty, initialCloud
             </div>
             <div className="flex items-center gap-3">
               {targets.budget !== undefined && budgetOk && (
-                <span className="text-xs text-emerald-400">
+                <span className="text-xs text-[var(--accent-light)]">
                   残り {yen(targets.budget - totals.price)}
                 </span>
               )}
@@ -1101,7 +1121,7 @@ function SetTableGrid({
                     <td
                       key={ct}
                       className={`px-2 py-2 border-r border-neutral-800 last:border-r-0 transition cursor-pointer ${
-                        isOn ? "bg-emerald-950/30" : isOver ? "bg-red-950/20 hover:bg-red-950/40" : "hover:bg-neutral-800/50"
+                        isOn ? "bg-[var(--accent-20)]" : isOver ? "bg-red-950/20 hover:bg-red-950/40" : "hover:bg-neutral-800/50"
                       }`}
                       onClick={() => isOn ? setItemQty(it.id, 0) : addOne(it.id)}
                     >
@@ -1114,7 +1134,7 @@ function SetTableGrid({
                             loading="lazy"
                           />
                         )}
-                        <span className={`text-xs font-semibold ${isOn ? "text-emerald-300" : isOver ? "text-red-400" : "text-neutral-200"}`}>
+                        <span className={`text-xs font-semibold ${isOn ? "text-[var(--accent-light)]" : isOver ? "text-red-400" : "text-neutral-200"}`}>
                           {yen(it.price)}
                         </span>
                         <div
@@ -1172,7 +1192,7 @@ function SetTableGrid({
                   key={it.id}
                   className={`rounded-2xl border overflow-hidden transition cursor-pointer ${
                     isOn
-                      ? "border-emerald-500/60 bg-emerald-950/20"
+                      ? "border-[var(--accent-60)] bg-[var(--accent-15)]"
                       : isOver
                       ? "border-red-500/50 bg-red-950/20 hover:border-red-400"
                       : "border-neutral-500/50 bg-neutral-800/50 hover:border-neutral-400"
@@ -1192,7 +1212,7 @@ function SetTableGrid({
                   <div className="p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="font-medium text-sm leading-snug">{it.name}</div>
-                    <div className={`shrink-0 text-sm font-semibold ${isOn ? "text-emerald-400" : isOver ? "text-red-400" : "text-neutral-200"}`}>{yen(it.price)}</div>
+                    <div className={`shrink-0 text-sm font-semibold ${isOn ? "text-[var(--accent-light)]" : isOver ? "text-red-400" : "text-neutral-200"}`}>{yen(it.price)}</div>
                   </div>
                   <div
                     className="mt-2 flex items-center gap-2"

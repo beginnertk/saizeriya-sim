@@ -5,6 +5,7 @@ const saizeriya: Restaurant = {
   name: "サイゼリヤ",
   categories: ["主食", "おかず", "サラダ/前菜", "サイド", "デザート"],
   defaultTargets: { budget: 1000 },
+  accentColor: "#1e9e4a",
   items: [
     // ──── 主食 ────
     // タグ: 1つ目=「主食」、2つ目以降=特徴

@@ -8,6 +8,7 @@ const hidakaya: Restaurant = {
   name: "日高屋",
   categories: ["セット", "定食", "ラーメン", "単品", "おつまみ", "トッピング"],
   defaultTargets: { budget: 1000 },
+  accentColor: "#e3231d",
 
   // セットカテゴリを表形式で表示する設定
   // ★ 列順は値段の安い順: 中華そば → とんこつ → 味噌 → タンメン
