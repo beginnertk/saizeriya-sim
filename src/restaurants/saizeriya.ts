@@ -8,32 +8,32 @@ const saizeriya: Restaurant = {
   items: [
     // ──── 主食 ────
     // タグ: 1つ目=「主食」、2つ目以降=特徴
-    { id: "sz_milan_doria",          name: "ミラノ風ドリア",                         category: "主食", price: 300, tags: ["主食", "定番"] },
+    { id: "sz_milan_doria",          name: "ミラノ風ドリア",                         category: "主食", price: 300, tags: ["主食", "定番"], image: "https://www.saizeriya.co.jp/files/2101_ミラノ風ドリア-1.webp" },
     { id: "sz_baked_cheese_milan",   name: "焼きチーズミラノ風ドリア",               category: "主食", price: 350, tags: ["主食", "チーズ"] },
     { id: "sz_soft_egg_milan",       name: "半熟卵のミラノ風ドリア",                 category: "主食", price: 350, tags: ["主食", "卵"] },
-    { id: "sz_carbonara",            name: "カルボナーラ（半熟卵のせ）",             category: "主食", price: 500, tags: ["主食", "パスタ"] },
+    { id: "sz_carbonara",            name: "カルボナーラ（半熟卵のせ）",             category: "主食", price: 500, tags: ["主食", "パスタ"], image: "https://www.saizeriya.co.jp/files/2305._カルボ_PC.webp" },
     { id: "sz_spinach_mushroom_cream", name: "きのことほうれん草のクリームスパゲッティ", category: "主食", price: 600, tags: ["主食", "パスタ"] },
     { id: "sz_bolognese",            name: "ミートソース",                           category: "主食", price: 400, tags: ["主食", "パスタ"] },
-    { id: "sz_margherita",           name: "マルゲリータピザ",                       category: "主食", price: 400, tags: ["主食", "ピザ"] },
-    { id: "sz_veggie_pizza",         name: "野菜とキノコのピザ",                     category: "主食", price: 400, tags: ["主食", "ピザ", "野菜"] },
+    { id: "sz_margherita",           name: "マルゲリータピザ",                       category: "主食", price: 400, tags: ["主食", "ピザ"], image: "https://www.saizeriya.co.jp/files/2203_バッファローモッツァレラのマルゲリータピザ.webp" },
+    { id: "sz_veggie_pizza",         name: "野菜とキノコのピザ",                     category: "主食", price: 400, tags: ["主食", "ピザ", "野菜"], image: "https://www.saizeriya.co.jp/files/2204_野菜ときのこのピザ.webp" },
     { id: "sz_cheese_focaccia",      name: "チーズフォッカチオ",                     category: "主食", price: 250, tags: ["主食", "パン", "チーズ"] },
     { id: "sz_garlic_focaccia",      name: "ガーリックフォッカチオ",                 category: "主食", price: 200, tags: ["主食", "パン"] },
 
     // ──── おかず ────
     // タグ: 1つ目=「おかず」、2つ目以降=特徴
-    { id: "sz_spicy_chicken",        name: "辛味チキン",                             category: "おかず", price: 300, tags: ["おかず", "肉", "辛い", "人気"] },
-    { id: "sz_diavola_chicken",      name: "若鶏のディアボラ風",                     category: "おかず", price: 500, tags: ["おかず", "肉", "スパイス"] },
+    { id: "sz_spicy_chicken",        name: "辛味チキン",                             category: "おかず", price: 300, tags: ["おかず", "肉", "辛い", "人気"], image: "https://www.saizeriya.co.jp/files/1401_辛味チキン.webp" },
+    { id: "sz_diavola_chicken",      name: "若鶏のディアボラ風",                     category: "おかず", price: 500, tags: ["おかず", "肉", "スパイス"], image: "https://www.saizeriya.co.jp/files/2402_若鶏のディアボラ風.webp" },
     { id: "sz_cheese_chicken",       name: "柔らかチキンのチーズ焼き",               category: "おかず", price: 500, tags: ["おかず", "肉", "チーズ"] },
 
     // ──── サラダ/前菜 ────
     // タグ: 1つ目=「サラダ/前菜」、2つ目以降=特徴
-    { id: "sz_ebi_salad",            name: "小エビのサラダ",                         category: "サラダ/前菜", price: 350, tags: ["サラダ/前菜", "サラダ"] },
-    { id: "sz_spinach_saute",        name: "ほうれん草のソテー",                     category: "サラダ/前菜", price: 200, tags: ["サラダ/前菜", "野菜"] },
-    { id: "sz_green_peas",           name: "柔らか青豆の温サラダ",                   category: "サラダ/前菜", price: 200, tags: ["サラダ/前菜", "野菜"] },
+    { id: "sz_ebi_salad",            name: "小エビのサラダ",                         category: "サラダ/前菜", price: 350, tags: ["サラダ/前菜", "サラダ"], image: "https://www.saizeriya.co.jp/files/1202_小エビのサラダ.webp" },
+    { id: "sz_spinach_saute",        name: "ほうれん草のソテー",                     category: "サラダ/前菜", price: 200, tags: ["サラダ/前菜", "野菜"], image: "https://www.saizeriya.co.jp/files/1403_ほうれん草_pc.webp" },
+    { id: "sz_green_peas",           name: "柔らか青豆の温サラダ",                   category: "サラダ/前菜", price: 200, tags: ["サラダ/前菜", "野菜"], image: "https://www.saizeriya.co.jp/files/1425_青豆_pc.webp" },
 
     // ──── デザート ────
     // タグ: 1つ目=「デザート」、2つ目以降=特徴
-    { id: "sz_tiramisu",             name: "ティラミス",                             category: "デザート", price: 300, tags: ["デザート", "スイーツ"] },
+    { id: "sz_tiramisu",             name: "ティラミス",                             category: "デザート", price: 300, tags: ["デザート", "スイーツ"], image: "https://www.saizeriya.co.jp/files/3201_ティラミスクラシコ.webp" },
     { id: "sz_truffle_ice",          name: "トリフアイスクリーム",                   category: "デザート", price: 350, tags: ["デザート", "スイーツ"] },
   ],
   tagOrder: [
