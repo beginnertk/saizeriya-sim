@@ -4,7 +4,7 @@
 飲食チェーン店のメニュー組み合わせ・合計金額確認Webアプリ。
 - 公開URL: https://beginnertk.github.io/saizeriya-sim/
 - GitHub: https://github.com/beginnertk/saizeriya-sim
-- 対応店舗: サイゼリヤ・日高屋・モスバーガー・ケンタッキー
+- 対応店舗: サイゼリヤ・日高屋・モスバーガー・ケンタッキー・玉川屋（和菓子）
 
 ## 技術スタック
 React 18 + TypeScript + Tailwind CSS v3 + Vite 5 + GitHub Pages (GitHub Actions自動デプロイ)
@@ -20,7 +20,8 @@ src/
     ├── saizeriya.ts
     ├── hidakaya.ts
     ├── mos.ts
-    └── kfc.ts
+    ├── kfc.ts
+    └── tamagawaya.ts
 
 public/
 ├── mos-sim.html      # モスバーガー専用スタンドアロンUI
@@ -54,10 +55,12 @@ npm run build
 `shx rm -rf dist` を先に実行することで回避済み。`npm run build` だけで OK。
 
 ### デプロイ
-```
-npm run deploy
-```
-GitHub Actions で自動デプロイ。push後2〜3分で反映。
+`git push origin main` するだけ。GitHub Actions (`.github/workflows/deploy.yml`) が自動でbuild→gh-pagesブランチへデプロイ。push後2〜3分で反映。
+
+**重要**: ローカルで`npm run deploy`（gh-pagesパッケージ）は使わない・スクリプト自体削除済み。
+Actionsとローカルデプロイが同じgh-pagesブランチを同時に更新すると、GitHub Pages公式の
+「pages build and deployment」ジョブが競合してfailureになり、pushしたのに公開サイトへ
+反映されない事象が発生した（2026-07-06）。デプロイ経路はActions一本化で統一。
 
 ## 実装済み・変更禁止の重要事項
 
@@ -158,6 +161,22 @@ GitHub Actions で自動デプロイ。push後2〜3分で反映。
 - テーマ: KFCレッド (#da291c)・黒背景タブバー・Bebas Neue (英語見出し)
 - クーポン機能（〜6/2）: カーネルクリスピー半額・ビスケット半額・レモン旨塩チキン40円引き
 - 価格: 2026年5月7日改定後（オリジナルチキン330円・ポテトL 490円等）
+
+### 玉川屋（和菓子・目黒）
+- 独自UIではなく共通Simulator.tsxをそのまま使用（`iframeSrc`未設定）
+- データ出典: 公式サイト https://www.wagashi-tamagawaya.com/menu 配下7ページ（年間/春/夏/秋/冬/お彼岸お盆/慶弔）
+- カテゴリ = 季節（`categories: ["年間","春","夏","秋","冬","お彼岸・お盆","慶弔"]`）。タグは使用せず`tagOrder: []`
+- 画像は公式サイトの`/_p/4630/images/pc/*.JPG`を直リンク参照（ダウンロード・同梱なし）
+- **`Item`型に`period`と`expiry`の2フィールドを追加**（他店舗は使用しない、玉川屋専用）
+  - `period` = 公式サイトに明記された「販売期間」のみ（例:"5月中旬〜9月中旬"）。季節限定品のみ設定、通年品は無指定
+  - `expiry` = 公式サイトの「賞味期限」「消費期限」原文をそのまま格納（例:"消費期限 当日"）
+  - カード表示: `period`→`expiry`の順で商品名の下に小さく表示（`Simulator.tsx`）
+  - **注意**: 一覧ページ（例: 年間ページ）には販売期間の記載がなく、賞味期限/消費期限のみのカテゴリが多い。カテゴリ名（秋・冬等）は季節分類であって販売期間の保証ではない。データ追加・修正時は必ず公式サイトの生HTMLを確認すること（WebFetchのAI要約は「販売期間」列を推測で埋めることがあるため、生HTML未確認のまま実装した際に実在しない"通年"表記を作ってしまった過去の失敗あり）
+- 除外品（価格未記載・販売休止中・変動価格・別価格重複のため）:
+  - 栗きんとん（冬）・紅白饅頭（慶弔）: 公式サイトに価格記載なし
+  - 花見団子（春）・チョコレート饅頭（年間）: 販売休止中
+  - 蓮の上「蓮の葉入り」（お彼岸・お盆）: 「900円前後」で重量により変動、ユーザー判断で不要
+  - 慶弔カテゴリのお赤飯8種: 年間カテゴリの同名品と別価格のため重複、ユーザー判断で不要
 
 ## 現在のTODO（優先度順）
 1. [ ] サイゼリヤに画像追加（公式: https://www.saizeriya.co.jp/menu/）
