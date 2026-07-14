@@ -37,6 +37,38 @@ export type SetTableConfig = {
   rowTags: string[];  // 縦軸に対応するタグ名（例: ["hancyahan", "gyoza"]）
 };
 
+// ============================================================
+// 予算探索モード用の型
+// ============================================================
+
+export type BudgetSearchMode = "exact" | "maximize-price" | "maximize-count";
+
+export type BudgetSearchConfig = {
+  budget: number;
+  maxItems: number; // 品数上限（既定4）
+  mode: BudgetSearchMode;
+  requiredIds: string[];
+  excludedIds: string[];
+  categoryLimits: Record<string, number>; // カテゴリ名 → 上限個数
+  groupEquivalents: boolean; // 同価格品をグループ化するか
+};
+
+export type BudgetSearchResultLine = {
+  itemId: string;      // 反映時に採用する代表アイテムID（グループ時は先頭）
+  groupIds: string[];  // 同価格候補（グループ化なしなら[itemId]のみ）
+  qty: number;
+};
+
+export type BudgetSearchResult = {
+  lines: BudgetSearchResultLine[];
+  total: number;
+  count: number;
+};
+
+export type BudgetSearchOutcome =
+  | { kind: "unreachable"; nearestDown: number | null; nearestUp: number | null; gcd: number }
+  | { kind: "ok"; results: BudgetSearchResult[]; truncated: boolean; totalFound: number };
+
 export type Restaurant = {
   id: string;       // 識別子 例: "saizeriya"
   name: string;     // 表示名 例: "サイゼリヤ"

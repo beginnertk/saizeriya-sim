@@ -1,5 +1,15 @@
 import React, { useMemo, useState, useEffect } from "react";
-import type { Item, Targets, SavedCombo, Restaurant, SetTableConfig } from "./types";
+import type {
+  Item,
+  Targets,
+  SavedCombo,
+  Restaurant,
+  SetTableConfig,
+  BudgetSearchConfig,
+  BudgetSearchOutcome,
+  BudgetSearchResult,
+} from "./types";
+import { searchCombinations } from "./budgetSearch";
 
 // ============================================================
 // ヘルパー関数（純関数 = 状態を持たない計算機）
@@ -146,6 +156,20 @@ export default function Simulator({ restaurant, onBack, initialQty, initialCloud
   const [copied, setCopied] = useState(false);
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [pendingImport, setPendingImport] = useState<SavedCombo[] | null>(null);
+  const [viewMode, setViewMode] = useState<"menu" | "budget-search">("menu");
+  const [searchConfig, setSearchConfig] = usePersistentState<BudgetSearchConfig>(
+    `${KEY}:searchConfig`,
+    {
+      budget: restaurant.defaultTargets.budget ?? 1000,
+      maxItems: 4,
+      mode: "exact",
+      requiredIds: [],
+      excludedIds: [],
+      categoryLimits: {},
+      groupEquivalents: false,
+    }
+  );
+  const [searchOutcome, setSearchOutcome] = useState<BudgetSearchOutcome | null>(null);
 
   // ── すべての useMemo をここにまとめる ──
   const totals = useMemo(() => computeTotals(items, qty, addonSelections), [items, qty, addonSelections]);
@@ -305,6 +329,16 @@ export default function Simulator({ restaurant, onBack, initialQty, initialCloud
 
   const reset = () => { setQty({}); setAddonSelections({}); };
 
+  // 予算探索の結果をメニュー選択に反映
+  const applySearchResult = (result: BudgetSearchResult) => {
+    const next: Record<string, number> = {};
+    result.lines.forEach((l) => {
+      next[l.itemId] = (next[l.itemId] || 0) + l.qty;
+    });
+    setQty(next);
+    setViewMode("menu");
+  };
+
   // URLシェア：選択状態をURLハッシュに埋め込んでクリップボードにコピー
   const shareUrl = () => {
     const compact = Object.entries(qty)
@@ -381,6 +415,43 @@ export default function Simulator({ restaurant, onBack, initialQty, initialCloud
           </div>
         </header>
 
+        {/* モード切替タブ */}
+        <div className="mt-4 flex gap-1">
+          {(
+            [
+              ["menu", "メニュー選択"],
+              ["budget-search", "予算探索"],
+            ] as const
+          ).map(([mode, label]) => (
+            <button
+              key={mode}
+              className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
+                viewMode === mode
+                  ? "bg-[var(--accent)] text-white"
+                  : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
+              }`}
+              onClick={() => setViewMode(mode)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {viewMode === "budget-search" && (
+          <BudgetSearchPanel
+            items={items}
+            restaurant={restaurant}
+            config={searchConfig}
+            setConfig={setSearchConfig}
+            outcome={searchOutcome}
+            onSearch={() => setSearchOutcome(searchCombinations(items, searchConfig))}
+            onApply={applySearchResult}
+            yen={yen}
+          />
+        )}
+
+        {viewMode === "menu" && (
+        <>
         {/* コントロールエリア */}
         <section className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
 
@@ -916,6 +987,8 @@ export default function Simulator({ restaurant, onBack, initialQty, initialCloud
             );
           })()}
         </section>
+        </>
+        )}
 
         <footer className="mt-10 border-t border-neutral-900 pt-4 text-xs text-neutral-500">
           ※ このツールは個人用です。価格は変動することがあります。最新情報は各店舗の公式サイトをご確認ください。
@@ -1248,6 +1321,274 @@ function SetTableGrid({
               );
             })}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// 予算探索パネル
+// ============================================================
+
+function BudgetSearchPanel({
+  items,
+  restaurant,
+  config,
+  setConfig,
+  outcome,
+  onSearch,
+  onApply,
+  yen,
+}: {
+  items: Item[];
+  restaurant: Restaurant;
+  config: BudgetSearchConfig;
+  setConfig: (v: BudgetSearchConfig | ((p: BudgetSearchConfig) => BudgetSearchConfig)) => void;
+  outcome: BudgetSearchOutcome | null;
+  onSearch: () => void;
+  onApply: (result: BudgetSearchResult) => void;
+  yen: (n: number) => string;
+}) {
+  const toggleInSet = (list: string[], id: string) =>
+    list.includes(id) ? list.filter((x) => x !== id) : [...list, id];
+
+  const findItem = (id: string) => items.find((it) => it.id === id);
+
+  return (
+    <div className="mt-4 space-y-4">
+      {/* 条件設定 */}
+      <div className="rounded-2xl border border-neutral-800 p-4">
+        <h2 className="mb-3 text-lg font-semibold">予算探索の条件</h2>
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {/* 予算・品数上限・モード */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-sm">
+              <span className="shrink-0 text-neutral-400 w-20">予算</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                className="w-full rounded-lg bg-neutral-900 px-3 py-1.5 text-right tabular-nums"
+                value={config.budget.toLocaleString("ja-JP")}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/,/g, "");
+                  const n = Number(raw);
+                  if (raw === "" || (Number.isFinite(n) && n >= 0)) {
+                    setConfig((prev) => ({ ...prev, budget: raw === "" ? 0 : n }));
+                  }
+                }}
+              />
+              <span className="shrink-0 text-neutral-400">円</span>
+            </div>
+
+            <div className="flex items-center gap-2 text-sm">
+              <span className="shrink-0 text-neutral-400 w-20">品数上限</span>
+              <input
+                type="number"
+                min={1}
+                max={8}
+                className="w-full rounded-lg bg-neutral-900 px-3 py-1.5 text-right tabular-nums"
+                value={config.maxItems}
+                onChange={(e) => {
+                  const n = Math.max(1, Math.min(8, Number(e.target.value) || 1));
+                  setConfig((prev) => ({ ...prev, maxItems: n }));
+                }}
+              />
+              <span className="shrink-0 text-neutral-400">品</span>
+            </div>
+
+            <div className="flex flex-wrap gap-3 text-sm">
+              {(
+                [
+                  ["exact", "ちょうど探索"],
+                  ["maximize-price", "予算以内で最高額"],
+                  ["maximize-count", "予算以内で最多品数"],
+                ] as const
+              ).map(([mode, label]) => (
+                <label key={mode} className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="budget-search-mode"
+                    checked={config.mode === mode}
+                    onChange={() => setConfig((prev) => ({ ...prev, mode }))}
+                  />
+                  <span>{label}</span>
+                </label>
+              ))}
+            </div>
+
+            <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                checked={config.groupEquivalents}
+                onChange={(e) =>
+                  setConfig((prev) => ({ ...prev, groupEquivalents: e.target.checked }))
+                }
+              />
+              <span>同価格の互換品をグループ化する</span>
+            </label>
+          </div>
+
+          {/* カテゴリ上限 */}
+          <div>
+            <div className="text-sm text-neutral-400 mb-1.5">カテゴリ上限（空欄=無制限）</div>
+            <div className="space-y-1.5">
+              {restaurant.categories.map((cat) => (
+                <div key={cat} className="flex items-center gap-2 text-sm">
+                  <span className="flex-1 truncate">{cat}</span>
+                  <input
+                    type="number"
+                    min={0}
+                    className="w-16 rounded-lg bg-neutral-900 px-2 py-1 text-right text-xs tabular-nums"
+                    value={config.categoryLimits[cat] ?? ""}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      setConfig((prev) => {
+                        const next = { ...prev.categoryLimits };
+                        if (raw === "") {
+                          delete next[cat];
+                        } else {
+                          next[cat] = Math.max(0, Number(raw) || 0);
+                        }
+                        return { ...prev, categoryLimits: next };
+                      });
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* 必須品・除外品 */}
+        <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div>
+            <div className="text-sm text-neutral-400 mb-1.5">必ず含める品</div>
+            <div className="max-h-40 overflow-y-auto space-y-1 rounded-lg border border-neutral-800 p-2">
+              {items.map((it) => (
+                <label key={it.id} className="flex items-center gap-1.5 text-xs cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={config.requiredIds.includes(it.id)}
+                    onChange={() =>
+                      setConfig((prev) => ({
+                        ...prev,
+                        requiredIds: toggleInSet(prev.requiredIds, it.id),
+                      }))
+                    }
+                  />
+                  <span className="truncate">{it.name}（{yen(it.price)}）</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div className="text-sm text-neutral-400 mb-1.5">除外する品</div>
+            <div className="max-h-40 overflow-y-auto space-y-1 rounded-lg border border-neutral-800 p-2">
+              {items.map((it) => (
+                <label key={it.id} className="flex items-center gap-1.5 text-xs cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={config.excludedIds.includes(it.id)}
+                    onChange={() =>
+                      setConfig((prev) => ({
+                        ...prev,
+                        excludedIds: toggleInSet(prev.excludedIds, it.id),
+                      }))
+                    }
+                  />
+                  <span className="truncate">{it.name}（{yen(it.price)}）</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <button
+          className="mt-4 w-full rounded-xl bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[var(--accent-hover)] transition"
+          onClick={onSearch}
+        >
+          探索実行
+        </button>
+      </div>
+
+      {/* 結果表示 */}
+      {outcome && outcome.kind === "unreachable" && (
+        <div className="rounded-2xl border border-red-800 bg-red-950/30 p-4">
+          <div className="text-sm text-red-300">
+            ✗ 達成不可能（この店の価格は {outcome.gcd} 円単位でのみ組み合わせ可能）
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {outcome.nearestDown !== null && (
+              <button
+                className="rounded-lg bg-neutral-800 px-3 py-1.5 text-sm hover:bg-neutral-700 transition tabular-nums"
+                onClick={() => setConfig((prev) => ({ ...prev, budget: outcome.nearestDown! }))}
+              >
+                {yen(outcome.nearestDown)} で再探索
+              </button>
+            )}
+            {outcome.nearestUp !== null && (
+              <button
+                className="rounded-lg bg-neutral-800 px-3 py-1.5 text-sm hover:bg-neutral-700 transition tabular-nums"
+                onClick={() => setConfig((prev) => ({ ...prev, budget: outcome.nearestUp! }))}
+              >
+                {yen(outcome.nearestUp)} で再探索
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {outcome && outcome.kind === "ok" && (
+        <div className="rounded-2xl border border-neutral-800 p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-lg font-semibold">
+              結果（{outcome.results.length}件{outcome.truncated ? "・先頭のみ表示" : ""}）
+            </h2>
+          </div>
+          {outcome.results.length === 0 ? (
+            <div className="text-center text-neutral-500 py-8">
+              条件に合う組み合わせが見つかりませんでした
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-[32rem] overflow-y-auto pr-1">
+              {outcome.results.map((result, i) => (
+                <div key={i} className="rounded-xl border border-neutral-800 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 space-y-0.5">
+                      {result.lines.map((line, li) => {
+                        const rep = findItem(line.itemId);
+                        const alt = line.groupIds
+                          .map((id) => findItem(id)?.name)
+                          .filter(Boolean);
+                        return (
+                          <div key={li} className="text-sm text-neutral-200 truncate">
+                            {rep?.name ?? line.itemId} × {line.qty}
+                            {alt.length > 1 && (
+                              <span className="text-xs text-neutral-500">
+                                {" "}（{alt.join("／")} から）
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <div className="text-sm font-bold tabular-nums">{yen(result.total)}</div>
+                      <div className="text-xs text-neutral-500 tabular-nums">{result.count} 品</div>
+                    </div>
+                  </div>
+                  <button
+                    className="mt-2 w-full rounded-lg bg-[var(--accent-15)] border border-[var(--accent-50)] px-3 py-1.5 text-xs font-medium text-[var(--accent-light)] hover:bg-[var(--accent-20)] transition"
+                    onClick={() => onApply(result)}
+                  >
+                    この組み合わせを選択
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
