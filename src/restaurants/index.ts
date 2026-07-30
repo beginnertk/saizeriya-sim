@@ -9,11 +9,12 @@ import kfc from "./kfc";
 import tamagawaya from "./tamagawaya";
 import takemura from "./takemura";
 import okubo from "./okubo";
+import hamazushi from "./hamazushi";
 import type { Restaurant } from "../types";
 
-export const restaurants: Restaurant[] = [saizeriya, hidakaya, mos, kfc, tamagawaya, takemura, okubo];
+export const restaurants: Restaurant[] = [saizeriya, hidakaya, mos, kfc, tamagawaya, takemura, okubo, hamazushi];
 
-export { saizeriya, hidakaya, mos, kfc, tamagawaya, takemura, okubo };
+export { saizeriya, hidakaya, mos, kfc, tamagawaya, takemura, okubo, hamazushi };
 
 
 
