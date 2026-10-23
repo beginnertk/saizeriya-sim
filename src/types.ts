@@ -31,6 +31,7 @@ export type SavedCombo = {
 // セットカテゴリを表形式で表示するための設定
 export type SetTableConfig = {
   category: string;   // 表形式にするカテゴリ名（例: "セット"）
+  cornerLabel?: string; // 表の左上セルのラベル（省略時は"サイド ╲ ラーメン"）
   cols: string[];     // 横軸のラベル（例: ["中華そば", "とんこつ"]）
   colTags: string[];  // 横軸に対応するタグ名（例: ["chuka", "tonkotsu"]）
   rows: string[];     // 縦軸のラベル（例: ["半チャーハン", "餃子"]）

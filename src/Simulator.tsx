@@ -1167,7 +1167,7 @@ function SetTableGrid({
           <thead>
             <tr className="bg-neutral-800">
               <th className="px-3 py-2 text-left text-xs text-neutral-400 font-normal border-b border-neutral-700 border-r border-neutral-700 w-40">
-                サイド ╲ ラーメン
+                {config.cornerLabel ?? "サイド ╲ ラーメン"}
               </th>
               {config.cols.map((col) => (
                 <th key={col} className="px-3 py-2 text-center text-xs font-semibold border-b border-neutral-700 border-r border-neutral-700 last:border-r-0">
